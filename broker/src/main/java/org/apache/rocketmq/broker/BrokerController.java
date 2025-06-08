@@ -887,6 +887,7 @@ public class BrokerController {
             this.registerBrokerAll(true, false, true);
         }
 
+        // 定时任务，每30秒向所有namesrv发送心跳包，时间间隔未10秒-60秒
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override

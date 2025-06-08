@@ -84,6 +84,7 @@ public class NamesrvController {
 
         this.registerProcessor();
 
+        // 启动定时任务1：NameServer每隔10s扫描一次Broker，移除处于未激活状态的Broker。
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override
@@ -92,6 +93,7 @@ public class NamesrvController {
             }
         }, 5, 10, TimeUnit.SECONDS);
 
+        // 启动定时任务2:NameServer每隔10min打印一次KV配置
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override
@@ -153,6 +155,7 @@ public class NamesrvController {
     }
 
     public void start() throws Exception {
+        // 远程通信服务器（基于Netty）启动，监听Broker、消息生产者的网络请求
         this.remotingServer.start();
 
         if (this.fileWatchService != null) {

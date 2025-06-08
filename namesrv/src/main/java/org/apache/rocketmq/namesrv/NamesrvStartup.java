@@ -137,12 +137,16 @@ public class NamesrvStartup {
             throw new IllegalArgumentException("NamesrvController is null");
         }
 
+        // 通过控制器初始化相关信息
         boolean initResult = controller.initialize();
         if (!initResult) {
             controller.shutdown();
             System.exit(-3);
         }
 
+        // 注册JVM钩子函数
+        // 如果代码中使用了线程池，一种优雅停机的方式就是注册一个JVM钩子函数，在JVM进程关闭之前，先将线程池关闭，及时释放资源
+        // todo 钩子函数？
         Runtime.getRuntime().addShutdownHook(new ShutdownHookThread(log, new Callable<Void>() {
             @Override
             public Void call() throws Exception {
@@ -151,6 +155,7 @@ public class NamesrvStartup {
             }
         }));
 
+        //启动相关服务，启动netty服务器监听Broker、消息生产者的网络请求
         controller.start();
 
         return controller;
