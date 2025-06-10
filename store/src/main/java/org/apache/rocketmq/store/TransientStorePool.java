@@ -28,11 +28,16 @@ import org.apache.rocketmq.store.config.MessageStoreConfig;
 import org.apache.rocketmq.store.util.LibC;
 import sun.nio.ch.DirectBuffer;
 
+// 短暂的内存池
 public class TransientStorePool {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
+    // availableBuffers个数，缓存池大小：默认为5
     private final int poolSize;
+    // mappedFileSizeCommitLog的文件大小，表明TransientStorePool为CommitLog文件服务的
+    // 对应创建后每个byteBuffer的大小
     private final int fileSize;
+    //
     private final Deque<ByteBuffer> availableBuffers;
     private final MessageStoreConfig storeConfig;
 
@@ -40,14 +45,19 @@ public class TransientStorePool {
         this.storeConfig = storeConfig;
         this.poolSize = storeConfig.getTransientStorePoolSize();
         this.fileSize = storeConfig.getMappedFileSizeCommitLog();
+        // ByteBuffer缓存池容器，双端队列
         this.availableBuffers = new ConcurrentLinkedDeque<>();
     }
 
     /**
      * It's a heavy init method.
      */
+    // 初始化 TransientStorePool
     public void init() {
+        // poolSize的堆外内存
         for (int i = 0; i < poolSize; i++) {
+            // 利用com.sun.jna.Library类库锁定该批内存，避免被置换到交换区？？
+            // 创建fileSize大小的堆外内存
             ByteBuffer byteBuffer = ByteBuffer.allocateDirect(fileSize);
 
             final long address = ((DirectBuffer) byteBuffer).address();

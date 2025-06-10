@@ -29,21 +29,36 @@ import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 
+// MappedFileQueue是MappedFile的管理容器
+// 映射文件队列，对应各种文件的存储路径
+// 比如${ROCKET_HOME}/store/commitlog存储路径
+
 public class MappedFileQueue {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
     private static final InternalLogger LOG_ERROR = InternalLoggerFactory.getLogger(LoggerName.STORE_ERROR_LOGGER_NAME);
 
     private static final int DELETE_FILES_BATCH_MAX = 10;
 
+    // 映射文件存储路径
+    // 存储目录
     private final String storePath;
 
+    // 每个CommitLog文件大小
     private final int mappedFileSize;
 
+    // MappedFile集合，映射路径下的所有文件
+    // 为什么是CopyOnWriteArrayList？？
     private final CopyOnWriteArrayList<MappedFile> mappedFiles = new CopyOnWriteArrayList<MappedFile>();
 
+    // 创建MappedFile服务类
     private final AllocateMappedFileService allocateMappedFileService;
 
+    // 当前刷盘指针，表示该指针之前的所有数据全部持久化到磁盘。
     private long flushedWhere = 0;
+
+    // 当前数据Commit指针，内存中ByteBuffer当前的写指针，该值大于、等于flushedWhere。
+    // 记录将字节缓冲区已经提交到FileChannel的字节位置。
+    // 一个MappedFileQueue 对应一个？
     private long committedWhere = 0;
 
     private volatile long storeTimestamp = 0;
@@ -74,6 +89,9 @@ public class MappedFileQueue {
         }
     }
 
+    // 根据时间戳查找第一个比传入时间大的文件
+    // 比较的是文件的修改时间。
+    // 如果找不到，则返回最后一个文件
     public MappedFile getMappedFileByTime(final long timestamp) {
         Object[] mfs = this.copyMappedFiles(0);
 
@@ -237,6 +255,8 @@ public class MappedFileQueue {
         return getLastMappedFile(startOffset, true);
     }
 
+    // 获取存储目录下某一个类文件的最后一个文件
+    // 当前是CommitLog下的最后一个CommitLog文件
     public MappedFile getLastMappedFile() {
         MappedFile mappedFileLast = null;
 
@@ -439,10 +459,13 @@ public class MappedFileQueue {
         return result;
     }
 
+    // 根据
     public boolean commit(final int commitLeastPages) {
         boolean result = true;
+        // 通过全局物理offset（已经提交的位置）查找所在的MappedFile
         MappedFile mappedFile = this.findMappedFileByOffset(this.committedWhere, this.committedWhere == 0);
         if (mappedFile != null) {
+            //
             int offset = mappedFile.commit(commitLeastPages);
             long where = mappedFile.getFileFromOffset() + offset;
             result = where == this.committedWhere;
@@ -459,6 +482,7 @@ public class MappedFileQueue {
      * @param returnFirstOnNotFound If the mapped file is not found, then return the first one.
      * @return Mapped file or null (when not found and returnFirstOnNotFound is <code>false</code>).
      */
+    // 通过全局物理offset查找所在的MappedFile
     public MappedFile findMappedFileByOffset(final long offset, final boolean returnFirstOnNotFound) {
         try {
             MappedFile firstMappedFile = this.getFirstMappedFile();
@@ -503,6 +527,8 @@ public class MappedFileQueue {
         return null;
     }
 
+    // 获取存储目录下某一个类文件的第一个文件
+    // 当前是CommitLog下的第一个CommitLog文件
     public MappedFile getFirstMappedFile() {
         MappedFile mappedFileFirst = null;
 
@@ -519,6 +545,7 @@ public class MappedFileQueue {
         return mappedFileFirst;
     }
 
+    // 通过全局物理offset查找所在的文件
     public MappedFile findMappedFileByOffset(final long offset) {
         return findMappedFileByOffset(offset, false);
     }

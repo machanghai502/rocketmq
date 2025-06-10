@@ -41,28 +41,53 @@ import org.apache.rocketmq.store.config.FlushDiskType;
 import org.apache.rocketmq.store.util.LibC;
 import sun.nio.ch.DirectBuffer;
 
+// MappedFile则对应的是${ROCKET_HOME}/store/commitlog文件夹下的实际的CommitLog文件
+// RocketMQ内存映射文件的具体实现
 public class MappedFile extends ReferenceResource {
+    // 操作系统每页大小，默认4KB
     public static final int OS_PAGE_SIZE = 1024 * 4;
     protected static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
+    // 映射的虚拟内存总量
     private static final AtomicLong TOTAL_MAPPED_VIRTUAL_MEMORY = new AtomicLong(0);
 
+    // 映射的文件总数
     private static final AtomicInteger TOTAL_MAPPED_FILES = new AtomicInteger(0);
+    // MappedFile当前的写指针
+    // 因为对应的是CommitLog，最大就是1G
     protected final AtomicInteger wrotePosition = new AtomicInteger(0);
+    // 已经提交到FileChannel的字节位置
     protected final AtomicInteger committedPosition = new AtomicInteger(0);
+    // 已经flush到磁盘的字节位置
     private final AtomicInteger flushedPosition = new AtomicInteger(0);
+    // 内存映射关联的文件大小
     protected int fileSize;
+    // 内存映射文件通道
     protected FileChannel fileChannel;
     /**
      * Message will put to here first, and then reput to FileChannel if writeBuffer is not null.
      */
+    // jdk字节缓冲
+    // 堆外内存ByteBuffer，如果不为空，数据首先将存储在该Buffer中，然后提交到MappedFile创建的FileChannel中。transientStorePoolEnable为true时不为空
+     //  对应一个CommitLog的文件大小，1GB
     protected ByteBuffer writeBuffer = null;
+    // 堆外内存池，该内存池中的内存会提供内存锁机制
     protected TransientStorePool transientStorePool = null;
+    // 内存映射的关关联文件名称
     private String fileName;
+    // 当前CommitLog的再整个CommitLog文件组中第一条消息的物理偏移量
+    // 文件名字就是，所以通过文件名字就可以获取
+    // 该文件的初始偏移量
     private long fileFromOffset;
+    // 映射文件对应的文件File实体，比如一个CommitLog日志文件
+    // 物理文件
     private File file;
+    // 物理文件对应的内存映射Buffer
+    // mmp返回的结果
     private MappedByteBuffer mappedByteBuffer;
+    // CommitLog最后一条消息的存储时间戳
     private volatile long storeTimestamp = 0;
+    // 是否是MappedFileQueue队列中第一个文件。
     private boolean firstCreateInQueue = false;
 
     public MappedFile() {
@@ -141,24 +166,33 @@ public class MappedFile extends ReferenceResource {
         return TOTAL_MAPPED_VIRTUAL_MEMORY.get();
     }
 
+    // MappedFile初始化
     public void init(final String fileName, final int fileSize,
         final TransientStorePool transientStorePool) throws IOException {
         init(fileName, fileSize);
+        // 初始化MappedFile的writeBuffer，该buffer从transientStorePool中获取
         this.writeBuffer = transientStorePool.borrowBuffer();
         this.transientStorePool = transientStorePool;
     }
 
+    // MappedFile初始化
     private void init(final String fileName, final int fileSize) throws IOException {
         this.fileName = fileName;
         this.fileSize = fileSize;
         this.file = new File(fileName);
+
+        // 当前CommitLog的再整个CommitLog文件组中第一条消息的物理偏移量
+        // 文件名字就是，所以通过文件名字就可以获取
         this.fileFromOffset = Long.parseLong(this.file.getName());
         boolean ok = false;
 
         ensureDirOK(this.file.getParent());
 
         try {
+            // 通过RandomAccessFile创建读写文件通道
             this.fileChannel = new RandomAccessFile(this.file, "rw").getChannel();
+
+            // mmap， 映射整个文件大小
             this.mappedByteBuffer = this.fileChannel.map(MapMode.READ_WRITE, 0, fileSize);
             TOTAL_MAPPED_VIRTUAL_MEMORY.addAndGet(fileSize);
             TOTAL_MAPPED_FILES.incrementAndGet();
@@ -176,6 +210,7 @@ public class MappedFile extends ReferenceResource {
         }
     }
 
+    // 文件的修改时间
     public long getLastModifiedTimestamp() {
         return this.file.lastModified();
     }
@@ -196,23 +231,29 @@ public class MappedFile extends ReferenceResource {
         return appendMessagesInner(messageExtBatch, cb);
     }
 
+    // 将消息追加到MappedFile中
     public AppendMessageResult appendMessagesInner(final MessageExt messageExt, final AppendMessageCallback cb) {
         assert messageExt != null;
         assert cb != null;
 
+        // 获取MappedFile当前的写指针（位置）
         int currentPos = this.wrotePosition.get();
 
         if (currentPos < this.fileSize) {
             ByteBuffer byteBuffer = writeBuffer != null ? writeBuffer.slice() : this.mappedByteBuffer.slice();
+            // ？？为啥？
             byteBuffer.position(currentPos);
             AppendMessageResult result;
+            // 单条消息写入
             if (messageExt instanceof MessageExtBrokerInner) {
                 result = cb.doAppend(this.getFileFromOffset(), byteBuffer, this.fileSize - currentPos, (MessageExtBrokerInner) messageExt);
             } else if (messageExt instanceof MessageExtBatch) {
+                // 批量消息写入
                 result = cb.doAppend(this.getFileFromOffset(), byteBuffer, this.fileSize - currentPos, (MessageExtBatch) messageExt);
             } else {
                 return new AppendMessageResult(AppendMessageStatus.UNKNOWN_ERROR);
             }
+            // 记录修改CommitLog文件的写指针位置
             this.wrotePosition.addAndGet(result.getWroteBytes());
             this.storeTimestamp = result.getStoreTimestamp();
             return result;
@@ -221,6 +262,8 @@ public class MappedFile extends ReferenceResource {
         return new AppendMessageResult(AppendMessageStatus.UNKNOWN_ERROR);
     }
 
+    // 当前CommitLog的再整个CommitLog文件组中第一条消息的物理偏移量
+    // 文件名字就是，所以通过文件名字就可以获取
     public long getFileFromOffset() {
         return this.fileFromOffset;
     }
@@ -294,6 +337,10 @@ public class MappedFile extends ReferenceResource {
         return this.getFlushedPosition();
     }
 
+    // 内存映射文件的提交
+    // 提交字节缓冲区的消息到file channel
+    // commitLeastPages 最少提交的页数
+    // 返回：
     public int commit(final int commitLeastPages) {
         if (writeBuffer == null) {
             //no need to commit data to file channel, so just regard wrotePosition as committedPosition.
@@ -323,7 +370,9 @@ public class MappedFile extends ReferenceResource {
 
         if (writePos - this.committedPosition.get() > 0) {
             try {
+                // 创建writeBuffer子视图
                 ByteBuffer byteBuffer = writeBuffer.slice();
+                // 为啥要设置position？
                 byteBuffer.position(lastCommittedPosition);
                 byteBuffer.limit(writePos);
                 this.fileChannel.position(lastCommittedPosition);
