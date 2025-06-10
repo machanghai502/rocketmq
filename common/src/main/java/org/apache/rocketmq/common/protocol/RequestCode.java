@@ -19,6 +19,7 @@ package org.apache.rocketmq.common.protocol;
 
 public class RequestCode {
 
+    //发送消息
     public static final int SEND_MESSAGE = 10;
 
     public static final int PULL_MESSAGE = 11;
@@ -86,9 +87,11 @@ public class RequestCode {
 
     public static final int DELETE_KV_CONFIG = 102;
 
+    // 注册broker到namesrv
     public static final int REGISTER_BROKER = 103;
 
     public static final int UNREGISTER_BROKER = 104;
+    // 从nameser获取topic路由信息
     public static final int GET_ROUTEINTO_BY_TOPIC = 105;
 
     public static final int GET_BROKER_CLUSTER_INFO = 106;

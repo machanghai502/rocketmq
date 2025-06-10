@@ -41,6 +41,7 @@ import org.apache.rocketmq.common.message.MessageQueue;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.remoting.RPCHook;
 import org.apache.rocketmq.remoting.exception.RemotingException;
+import org.apache.rocketmq.remoting.netty.NettyRemotingClient;
 
 /**
  * This class is the entry point for applications intending to send messages. </p>
@@ -892,9 +893,14 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
         return this.defaultMQProducerImpl.queryMessageByUniqKey(withNamespace(topic), msgId);
     }
 
+    // 批量发送消息
     @Override
     public SendResult send(
         Collection<Message> msgs) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+
+        // 调用batch()方法，将一批消息封装成
+        // MessageBatch对象。Message-Batch继承自Message对象，内部持有
+        // List<Message> messages。这样一来，批量消息发送与单条消息发送的处理流程就完全一样了
         return this.defaultMQProducerImpl.send(batch(msgs));
     }
 
@@ -945,6 +951,8 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
                 MessageClientIDSetter.setUniqID(message);
                 message.setTopic(withNamespace(message.getTopic()));
             }
+
+            // 批量消息的body是经过编码有一定格式的。
             msgBatch.setBody(msgBatch.encode());
         } catch (Exception e) {
             throw new MQClientException("Failed to initiate the MessageBatch", e);
