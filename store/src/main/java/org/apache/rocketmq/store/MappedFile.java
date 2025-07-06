@@ -55,10 +55,11 @@ public class MappedFile extends ReferenceResource {
     private static final AtomicInteger TOTAL_MAPPED_FILES = new AtomicInteger(0);
     // MappedFile当前的写指针
     // 因为对应的是CommitLog，最大就是1G
+    // 当前文件中已经写入到字节缓冲区的偏移位置
     protected final AtomicInteger wrotePosition = new AtomicInteger(0);
-    // 已经提交到FileChannel的字节位置
+    // 当前文件中已经提交到FileChannel的偏移位置
     protected final AtomicInteger committedPosition = new AtomicInteger(0);
-    // 已经flush到磁盘的字节位置
+    // 当前文件中已经flush到磁盘的字节偏移位置
     private final AtomicInteger flushedPosition = new AtomicInteger(0);
     // 内存映射关联的文件大小
     protected int fileSize;
@@ -171,6 +172,7 @@ public class MappedFile extends ReferenceResource {
         final TransientStorePool transientStorePool) throws IOException {
         init(fileName, fileSize);
         // 初始化MappedFile的writeBuffer，该buffer从transientStorePool中获取
+        // 是否会为null或者为null的情况怎么处理
         this.writeBuffer = transientStorePool.borrowBuffer();
         this.transientStorePool = transientStorePool;
     }
@@ -236,15 +238,35 @@ public class MappedFile extends ReferenceResource {
         assert messageExt != null;
         assert cb != null;
 
-        // 获取MappedFile当前的写指针（位置）
+        // 获取MappedFile(CommitLog文件)当前的写指针（位置）
+        //
         int currentPos = this.wrotePosition.get();
 
         if (currentPos < this.fileSize) {
             ByteBuffer byteBuffer = writeBuffer != null ? writeBuffer.slice() : this.mappedByteBuffer.slice();
+
+            System.out.println("limit:" + writeBuffer.limit());
+            System.out.println("position:" + writeBuffer.position());
+            System.out.println("capacity:" + writeBuffer.capacity());
+
+            System.out.println("=====after slice()========");
+
+            System.out.println("limit:" + byteBuffer.limit());
+            System.out.println("position:" + byteBuffer.position());
+            System.out.println("capacity:" + byteBuffer.capacity());
+
             // ？？为啥？
             byteBuffer.position(currentPos);
+
+            System.out.println("=====slice byteBuffer set position ========");
+
+            System.out.println("limit:" + byteBuffer.limit());
+            System.out.println("position:" + byteBuffer.position());
+            System.out.println("capacity:" + byteBuffer.capacity());
+
             AppendMessageResult result;
             // 单条消息写入
+            // 写入writeBuffer中
             if (messageExt instanceof MessageExtBrokerInner) {
                 result = cb.doAppend(this.getFileFromOffset(), byteBuffer, this.fileSize - currentPos, (MessageExtBrokerInner) messageExt);
             } else if (messageExt instanceof MessageExtBatch) {
@@ -253,7 +275,10 @@ public class MappedFile extends ReferenceResource {
             } else {
                 return new AppendMessageResult(AppendMessageStatus.UNKNOWN_ERROR);
             }
-            // 记录修改CommitLog文件的写指针位置
+
+
+
+            // 增加记录修改CommitLog文件对应的ByteBuffer的写指针位置
             this.wrotePosition.addAndGet(result.getWroteBytes());
             this.storeTimestamp = result.getStoreTimestamp();
             return result;
@@ -447,6 +472,7 @@ public class MappedFile extends ReferenceResource {
         return null;
     }
 
+    // pos 全局物理偏移量
     public SelectMappedBufferResult selectMappedBuffer(int pos) {
         int readPosition = getReadPosition();
         if (pos < readPosition && pos >= 0) {
@@ -522,6 +548,7 @@ public class MappedFile extends ReferenceResource {
     /**
      * @return The max position which have valid data
      */
+    //
     public int getReadPosition() {
         return this.writeBuffer == null ? this.wrotePosition.get() : this.committedPosition.get();
     }

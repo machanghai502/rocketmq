@@ -319,9 +319,11 @@ public class MappedFileQueue {
         return -1;
     }
 
+    // 获取当前CommitLog文件组中最大的全局物理偏移量
     public long getMaxOffset() {
         MappedFile mappedFile = getLastMappedFile();
         if (mappedFile != null) {
+            // 当前文件起始全局物理偏移量 +
             return mappedFile.getFileFromOffset() + mappedFile.getReadPosition();
         }
         return 0;

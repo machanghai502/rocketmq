@@ -145,6 +145,8 @@ public class DefaultMessageStore implements MessageStore {
         } else {
             this.haService = null;
         }
+
+        //创建构建ConsumeQueue线程服务类实例
         this.reputMessageService = new ReputMessageService();
 
         this.scheduleMessageService = new ScheduleMessageService(this);
@@ -223,7 +225,7 @@ public class DefaultMessageStore implements MessageStore {
     /**
      * @throws Exception
      */
-    // MessageStore启动操作
+    // MessageStore启动一些列相关任务
     public void start() throws Exception {
 
         lock = lockFile.getChannel().tryLock(0, 1, false);
@@ -265,7 +267,11 @@ public class DefaultMessageStore implements MessageStore {
             }
             log.info("[SetReputOffset] maxPhysicalPosInLogicQueue={} clMinOffset={} clMaxOffset={} clConfirmedOffset={}",
                 maxPhysicalPosInLogicQueue, this.commitLog.getMinOffset(), this.commitLog.getMaxOffset(), this.commitLog.getConfirmOffset());
+
+
             this.reputMessageService.setReputFromOffset(maxPhysicalPosInLogicQueue);
+
+            // 启动构建ConsumeQueue线程
             this.reputMessageService.start();
 
             /**
@@ -1792,8 +1798,10 @@ public class DefaultMessageStore implements MessageStore {
         }
     }
 
+    // 构建ConsumeQueue线程服务类，转发消息用来构建ConsumeQueue和Index
     class ReputMessageService extends ServiceThread {
 
+        // 从从哪个全局物理偏移量开始转发消息给ConsumeQueue和Index文件
         private volatile long reputFromOffset = 0;
 
         public long getReputFromOffset() {
@@ -1825,11 +1833,14 @@ public class DefaultMessageStore implements MessageStore {
             return DefaultMessageStore.this.commitLog.getMaxOffset() - this.reputFromOffset;
         }
 
+        // 判断当前开始转发的全局物理offset是否小于CommitLog文件组最大的全局物理offset
         private boolean isCommitLogAvailable() {
             return this.reputFromOffset < DefaultMessageStore.this.commitLog.getMaxOffset();
         }
 
         private void doReput() {
+
+            // 判断转发全局物理偏移量如果比当前最小物理偏移量小，则设置为当前最小物理偏移量
             if (this.reputFromOffset < DefaultMessageStore.this.commitLog.getMinOffset()) {
                 log.warn("The reputFromOffset={} is smaller than minPyOffset={}, this usually indicate that the dispatch behind too much and the commitlog has expired.",
                     this.reputFromOffset, DefaultMessageStore.this.commitLog.getMinOffset());
@@ -1837,11 +1848,14 @@ public class DefaultMessageStore implements MessageStore {
             }
             for (boolean doNext = true; this.isCommitLogAvailable() && doNext; ) {
 
+                //
                 if (DefaultMessageStore.this.getMessageStoreConfig().isDuplicationEnable()
                     && this.reputFromOffset >= DefaultMessageStore.this.getConfirmOffset()) {
                     break;
                 }
 
+                // 选择要转发的消息
+                // 回reputFromOffset偏移量开始的全部有效数据（CommitLog文件）
                 SelectMappedBufferResult result = DefaultMessageStore.this.commitLog.getData(reputFromOffset);
                 if (result != null) {
                     try {

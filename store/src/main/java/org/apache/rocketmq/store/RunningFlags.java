@@ -18,16 +18,31 @@ package org.apache.rocketmq.store;
 
 public class RunningFlags {
 
+    // 00000000 00000000 00000000 00000001
+    // 不可读
     private static final int NOT_READABLE_BIT = 1;
 
+    // 无符号左移1位
+    //  00000000 00000000 00000000 00000010
+    // 不可写
     private static final int NOT_WRITEABLE_BIT = 1 << 1;
 
+    // 无符号左移2位
+    // 00000000 00000000 00000000 00000100
+    // 写 queue 错误
     private static final int WRITE_LOGICS_QUEUE_ERROR_BIT = 1 << 2;
 
+    // 无符号左移3位
+    // 00000000 00000000 00000000 00001000
+    // 写 index 错误
     private static final int WRITE_INDEX_FILE_ERROR_BIT = 1 << 3;
 
+    // 无符号左移4位
+    // 00000000 00000000 00000000 00010000
+    // 磁盘已满
     private static final int DISK_FULL_BIT = 1 << 4;
 
+    // 几种状态组合标记位，如果是对应的状态，对应的位设置成1
     private volatile int flagBits = 0;
 
     public RunningFlags() {
@@ -46,6 +61,7 @@ public class RunningFlags {
     }
 
     public boolean isReadable() {
+        // 00000000 & 00000001 == 000000000
         if ((this.flagBits & NOT_READABLE_BIT) == 0) {
             return true;
         }
@@ -118,14 +134,22 @@ public class RunningFlags {
         return false;
     }
 
+    // 标记磁盘满了
     public boolean getAndMakeDiskFull() {
+        // 判断是否磁盘满了，
         boolean result = !((this.flagBits & DISK_FULL_BIT) == DISK_FULL_BIT);
+        // 设置磁盘满了
+        // 按位或赋值运算符
+        // this.flagBits = this.flagBits | DISK_FULL_BIT;
         this.flagBits |= DISK_FULL_BIT;
         return result;
     }
 
     public boolean getAndMakeDiskOK() {
         boolean result = !((this.flagBits & DISK_FULL_BIT) == DISK_FULL_BIT);
+        // 按位取反运算符，对操作数的每一位取反（0 变 1，1 变 0）
+        //  00010000 --> 11101111
+        // 按位与赋值运算符 即设置flagBits对应位0，其他1保留
         this.flagBits &= ~DISK_FULL_BIT;
         return result;
     }

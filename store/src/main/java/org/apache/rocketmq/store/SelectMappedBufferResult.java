@@ -18,12 +18,15 @@ package org.apache.rocketmq.store;
 
 import java.nio.ByteBuffer;
 
+// 选中的
 public class SelectMappedBufferResult {
 
+    // CommitLog全局物理偏移
     private final long startOffset;
 
     private final ByteBuffer byteBuffer;
 
+    // 本次选择的字节数量
     private int size;
 
     private MappedFile mappedFile;

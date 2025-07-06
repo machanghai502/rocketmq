@@ -25,19 +25,30 @@ import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.store.config.BrokerRole;
 import org.apache.rocketmq.store.config.StorePathConfigHelper;
 
+// 代表消费队列
+// 对应一个消费队列文件：
+// 比如：RocketMQ_HOME/store/consumequeue/queueid/consumequeuefile
+// 一个ConsumeQueue文件默认存储30W条消息索引项，大约6MB
 public class ConsumeQueue {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
+    // ConsumeQueue Item size 每条索引20个字节
     public static final int CQ_STORE_UNIT_SIZE = 20;
     private static final InternalLogger LOG_ERROR = InternalLoggerFactory.getLogger(LoggerName.STORE_ERROR_LOGGER_NAME);
 
     private final DefaultMessageStore defaultMessageStore;
 
+    // 代表一个topic下的一个队列下的所有consumeQueue文件
     private final MappedFileQueue mappedFileQueue;
+    // 所属topic
     private final String topic;
+    // 所属queueId
     private final int queueId;
+
+    //存储每条cq索引的字节缓冲区
     private final ByteBuffer byteBufferIndex;
 
+    // store目录存储路径：RocketMQ_HOME/store/
     private final String storePath;
     private final int mappedFileSize;
     private long maxPhysicOffset = -1;
@@ -57,6 +68,7 @@ public class ConsumeQueue {
         this.topic = topic;
         this.queueId = queueId;
 
+        // {RocketMQ_HOME}/store/consumer/topic/{queueId}/
         String queueDir = this.storePath
             + File.separator + topic
             + File.separator + queueId;

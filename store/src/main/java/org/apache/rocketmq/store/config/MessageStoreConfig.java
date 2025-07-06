@@ -37,9 +37,10 @@ public class MessageStoreConfig {
     // CommitLog文件大小 默认1G。
     private int mappedFileSizeCommitLog = 1024 * 1024 * 1024;
     // ConsumeQueue file size,default is 30W
-    // ConsumeQueue文件大小
+    // ConsumeQueue文件大小 300000条 * 20B == 6MB
     private int mappedFileSizeConsumeQueue = 300000 * ConsumeQueue.CQ_STORE_UNIT_SIZE;
     // enable consume queue ext
+    // ？？
     private boolean enableConsumeQueueExt = false;
     // ConsumeQueue extend file size, 48M
     private int mappedFileSizeConsumeQueueExt = 48 * 1024 * 1024;
@@ -144,6 +145,8 @@ public class MessageStoreConfig {
     private boolean warmMapedFileEnable = false;
     private boolean offsetCheckInSlave = false;
     private boolean debugLockEnable = false;
+
+    //
     private boolean duplicationEnable = false;
     private boolean diskFallRecorded = true;
     private long osPageCacheBusyTimeOutMills = 1000;

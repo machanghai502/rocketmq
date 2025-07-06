@@ -66,6 +66,8 @@ public class CommitLog {
     private final ThreadLocal<MessageExtBatchEncoder> batchEncoderThreadLocal;
     //
     protected HashMap<String/* topic-queueid */, Long/* offset */> topicQueueTable = new HashMap<String, Long>(1024);
+
+    // phy全局物理offset
     protected volatile long confirmOffset = -1L;
 
     private volatile long beginTimeInLock = 0;
@@ -140,6 +142,7 @@ public class CommitLog {
         return this.mappedFileQueue.getFlushedWhere();
     }
 
+    // 获取当前CommitLog文件组中最大的全局物理偏移量
     public long getMaxOffset() {
         return this.mappedFileQueue.getMaxOffset();
     }
@@ -164,12 +167,17 @@ public class CommitLog {
     /**
      * Read CommitLog data, use data replication
      */
+    // offset CommitLog全局物理偏移量
     public SelectMappedBufferResult getData(final long offset) {
         return this.getData(offset, offset == 0);
     }
 
+    // 根据offset查找
+    // offset CommitLog全局物理偏移量
     public SelectMappedBufferResult getData(final long offset, final boolean returnFirstOnNotFound) {
+        // CommitLog file size == 1GB
         int mappedFileSize = this.defaultMessageStore.getMessageStoreConfig().getMappedFileSizeCommitLog();
+        //  通过全局物理offset查找所在的MappedFile
         MappedFile mappedFile = this.mappedFileQueue.findMappedFileByOffset(offset, returnFirstOnNotFound);
         if (mappedFile != null) {
             int pos = (int) (offset % mappedFileSize);
@@ -898,6 +906,7 @@ public class CommitLog {
         return -1;
     }
 
+    // 获取当前CommitLog文件组中最小的全局物理偏移量
     public long getMinOffset() {
         MappedFile mappedFile = this.mappedFileQueue.getFirstMappedFile();
         if (mappedFile != null) {
@@ -1260,7 +1269,7 @@ public class CommitLog {
         private final ByteBuffer msgIdMemory;
         private final ByteBuffer msgIdV6Memory;
         // Store the message content
-        // 存储一条消息的字节缓冲期
+        // 存储一条消息的字节缓冲期,最大是4M，即一条消息的最大大小（字节）
         private final ByteBuffer msgStoreItemMemory;
         // The maximum length of the message
         // 最大消息长度，默认4M
@@ -1283,6 +1292,7 @@ public class CommitLog {
             return msgStoreItemMemory;
         }
 
+        // byteBuffer：对一个整个CommitLog的ByteBuffer slice 的
         //
         public AppendMessageResult doAppend(final long fileFromOffset, final ByteBuffer byteBuffer, final int maxBlank,
             final MessageExtBrokerInner msgInner) {
@@ -1434,6 +1444,7 @@ public class CommitLog {
 
             final long beginTimeMills = CommitLog.this.defaultMessageStore.now();
             // Write messages to the queue buffer
+
             // 将一条消息写入整个CommitLog的ByteBuffer中。
             byteBuffer.put(this.msgStoreItemMemory.array(), 0, msgLen);
 
@@ -1549,6 +1560,8 @@ public class CommitLog {
             return result;
         }
 
+        // 重置byteBuffer position=0，limit = 消息长度。
+        // 重置后准备写入数据
         private void resetByteBuffer(final ByteBuffer byteBuffer, final int limit) {
             byteBuffer.flip();
             byteBuffer.limit(limit);
