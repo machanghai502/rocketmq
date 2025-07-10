@@ -33,14 +33,29 @@ public class ByteBufferTest {
         System.out.println("position:" + sliceByteBuffer.position());
         System.out.println("capacity:" + sliceByteBuffer.capacity());
 
-        sliceByteBuffer.position(2);
 
-        System.out.println("===after position(2)========");
-        System.out.println("position:" + sliceByteBuffer.position());
         sliceByteBuffer.put("7".getBytes());
-        System.out.println("limit:" + sliceByteBuffer.limit());
-        System.out.println("position:" + sliceByteBuffer.position());
-        System.out.println("capacity:" + sliceByteBuffer.capacity());
+
+        System.out.println("===after sliceByteBuffer put()========");
+
+        System.out.println("sliceByteBuffer limit:" + sliceByteBuffer.limit());
+        System.out.println("sliceByteBuffer position:" + sliceByteBuffer.position());
+        System.out.println("sliceByteBuffer capacity:" + sliceByteBuffer.capacity());
+
+        // sliceByteBuffer 添加，不影响原始byteBuffer的position。两个byteBuffer是独立的。
+        System.out.println("byteBuffer limit:" + byteBuffer.limit());
+        System.out.println("byteBuffer position:" + byteBuffer.position());
+        System.out.println("byteBuffer capacity:" + byteBuffer.capacity());
+
+
+//        sliceByteBuffer.position(2);
+//
+//        System.out.println("===after position(2)========");
+//        System.out.println("position:" + sliceByteBuffer.position());
+//        sliceByteBuffer.put("7".getBytes());
+//        System.out.println("limit:" + sliceByteBuffer.limit());
+//        System.out.println("position:" + sliceByteBuffer.position());
+//        System.out.println("capacity:" + sliceByteBuffer.capacity());
 
     }
 }

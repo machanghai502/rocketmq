@@ -47,7 +47,6 @@ public class MappedFile extends ReferenceResource {
     // 操作系统每页大小，默认4KB
     public static final int OS_PAGE_SIZE = 1024 * 4;
     protected static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
-
     // 映射的虚拟内存总量
     private static final AtomicLong TOTAL_MAPPED_VIRTUAL_MEMORY = new AtomicLong(0);
 
@@ -55,9 +54,9 @@ public class MappedFile extends ReferenceResource {
     private static final AtomicInteger TOTAL_MAPPED_FILES = new AtomicInteger(0);
     // MappedFile当前的写指针
     // 因为对应的是CommitLog，最大就是1G
-    // 当前文件中已经写入到字节缓冲区的偏移位置
+    // 当前CommitLog文件中已经写入到字节缓冲区的偏移位置
     protected final AtomicInteger wrotePosition = new AtomicInteger(0);
-    // 当前文件中已经提交到FileChannel的偏移位置
+    // 当前CommitLog文件中已经提交到FileChannel的偏移位置
     protected final AtomicInteger committedPosition = new AtomicInteger(0);
     // 当前文件中已经flush到磁盘的字节偏移位置
     private final AtomicInteger flushedPosition = new AtomicInteger(0);
@@ -70,7 +69,7 @@ public class MappedFile extends ReferenceResource {
      */
     // jdk字节缓冲
     // 堆外内存ByteBuffer，如果不为空，数据首先将存储在该Buffer中，然后提交到MappedFile创建的FileChannel中。transientStorePoolEnable为true时不为空
-     //  对应一个CommitLog的文件大小，1GB
+     // 对应一个CommitLog的文件大小，1GB
     protected ByteBuffer writeBuffer = null;
     // 堆外内存池，该内存池中的内存会提供内存锁机制
     protected TransientStorePool transientStorePool = null;
@@ -94,10 +93,12 @@ public class MappedFile extends ReferenceResource {
     public MappedFile() {
     }
 
+    // MappedFile实例化
     public MappedFile(final String fileName, final int fileSize) throws IOException {
         init(fileName, fileSize);
     }
 
+    // MappedFile实例化，
     public MappedFile(final String fileName, final int fileSize,
         final TransientStorePool transientStorePool) throws IOException {
         init(fileName, fileSize, transientStorePool);
@@ -168,11 +169,12 @@ public class MappedFile extends ReferenceResource {
     }
 
     // MappedFile初始化
+    // 开启了transientStorePool调用这个方法
     public void init(final String fileName, final int fileSize,
         final TransientStorePool transientStorePool) throws IOException {
         init(fileName, fileSize);
         // 初始化MappedFile的writeBuffer，该buffer从transientStorePool中获取
-        // 是否会为null或者为null的情况怎么处理
+        // 是否会为null或者为null的情况怎么处理？？
         this.writeBuffer = transientStorePool.borrowBuffer();
         this.transientStorePool = transientStorePool;
     }
@@ -239,7 +241,6 @@ public class MappedFile extends ReferenceResource {
         assert cb != null;
 
         // 获取MappedFile(CommitLog文件)当前的写指针（位置）
-        //
         int currentPos = this.wrotePosition.get();
 
         if (currentPos < this.fileSize) {
@@ -255,7 +256,7 @@ public class MappedFile extends ReferenceResource {
             System.out.println("position:" + byteBuffer.position());
             System.out.println("capacity:" + byteBuffer.capacity());
 
-            // ？？为啥？
+            // ？？为啥？？？
             byteBuffer.position(currentPos);
 
             System.out.println("=====slice byteBuffer set position ========");
@@ -278,7 +279,8 @@ public class MappedFile extends ReferenceResource {
 
 
 
-            // 增加记录修改CommitLog文件对应的ByteBuffer的写指针位置
+            // 增加记录修改CommitLog文件对应的ByteBuffer的写指针位置，
+            // 即增加一条消息的长度。
             this.wrotePosition.addAndGet(result.getWroteBytes());
             this.storeTimestamp = result.getStoreTimestamp();
             return result;
@@ -362,15 +364,16 @@ public class MappedFile extends ReferenceResource {
         return this.getFlushedPosition();
     }
 
-    // 内存映射文件的提交
     // 提交字节缓冲区的消息到file channel
     // commitLeastPages 最少提交的页数
-    // 返回：
+    // 返回：当前commitLog文件提交后的偏移量
     public int commit(final int commitLeastPages) {
+        // ？？
         if (writeBuffer == null) {
             //no need to commit data to file channel, so just regard wrotePosition as committedPosition.
             return this.wrotePosition.get();
         }
+
         if (this.isAbleToCommit(commitLeastPages)) {
             if (this.hold()) {
                 commit0(commitLeastPages);
@@ -381,6 +384,7 @@ public class MappedFile extends ReferenceResource {
         }
 
         // All dirty data has been committed to FileChannel.
+        // 什么情况下归还WriteBuffer
         if (writeBuffer != null && this.transientStorePool != null && this.fileSize == this.committedPosition.get()) {
             this.transientStorePool.returnBuffer(writeBuffer);
             this.writeBuffer = null;
@@ -389,6 +393,7 @@ public class MappedFile extends ReferenceResource {
         return this.committedPosition.get();
     }
 
+    // 将writeBuffer中的committedPostion 到 writePosition之间的字节写入到fileChannel（pageCache中）
     protected void commit0(final int commitLeastPages) {
         int writePos = this.wrotePosition.get();
         int lastCommittedPosition = this.committedPosition.get();
@@ -397,9 +402,10 @@ public class MappedFile extends ReferenceResource {
             try {
                 // 创建writeBuffer子视图
                 ByteBuffer byteBuffer = writeBuffer.slice();
-                // 为啥要设置position？
+                // 为啥要设置position？？
                 byteBuffer.position(lastCommittedPosition);
                 byteBuffer.limit(writePos);
+                // 从position位置开始写入byteBuffer内容？
                 this.fileChannel.position(lastCommittedPosition);
                 this.fileChannel.write(byteBuffer);
                 this.committedPosition.set(writePos);
@@ -432,6 +438,7 @@ public class MappedFile extends ReferenceResource {
             return true;
         }
 
+        //
         if (commitLeastPages > 0) {
             return ((write / OS_PAGE_SIZE) - (flush / OS_PAGE_SIZE)) >= commitLeastPages;
         }

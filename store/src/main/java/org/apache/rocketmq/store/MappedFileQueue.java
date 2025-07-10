@@ -57,8 +57,8 @@ public class MappedFileQueue {
     private long flushedWhere = 0;
 
     // 当前数据Commit指针，内存中ByteBuffer当前的写指针，该值大于、等于flushedWhere。
-    // 记录将字节缓冲区已经提交到FileChannel的字节位置。
-    // 一个MappedFileQueue 对应一个？
+    // 记录将字节缓冲区已经提交到FileChannel的偏移量。
+    // 已经提交到FileChannel的CommitLog文件组的全局物理偏移量
     private long committedWhere = 0;
 
     private volatile long storeTimestamp = 0;
@@ -461,13 +461,11 @@ public class MappedFileQueue {
         return result;
     }
 
-    // 根据
     public boolean commit(final int commitLeastPages) {
         boolean result = true;
         // 通过全局物理offset（已经提交的位置）查找所在的MappedFile
         MappedFile mappedFile = this.findMappedFileByOffset(this.committedWhere, this.committedWhere == 0);
         if (mappedFile != null) {
-            //
             int offset = mappedFile.commit(commitLeastPages);
             long where = mappedFile.getFileFromOffset() + offset;
             result = where == this.committedWhere;
@@ -485,6 +483,7 @@ public class MappedFileQueue {
      * @return Mapped file or null (when not found and returnFirstOnNotFound is <code>false</code>).
      */
     // 通过全局物理offset查找所在的MappedFile
+    // offset
     public MappedFile findMappedFileByOffset(final long offset, final boolean returnFirstOnNotFound) {
         try {
             MappedFile firstMappedFile = this.getFirstMappedFile();

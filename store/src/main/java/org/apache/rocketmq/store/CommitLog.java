@@ -86,16 +86,16 @@ public class CommitLog {
         // 是否异步刷盘、同步刷盘
         // 同步刷盘
         if (FlushDiskType.SYNC_FLUSH == defaultMessageStore.getMessageStoreConfig().getFlushDiskType()) {
+            // 同步刷盘 组提交
             this.flushCommitLogService = new GroupCommitService();
         } else {
             // 异步刷盘
             this.flushCommitLogService = new FlushRealTimeService();
         }
 
-        // 提交到FileChannel线程
+        // 实例化提交CommitLog消息到FileChannel线程服务
         this.commitLogService = new CommitRealTimeService();
 
-        //
         this.appendMessageCallback = new DefaultAppendMessageCallback(defaultMessageStore.getMessageStoreConfig().getMaxMessageSize());
         batchEncoderThreadLocal = new ThreadLocal<MessageExtBatchEncoder>() {
             @Override
@@ -116,14 +116,14 @@ public class CommitLog {
         return result;
     }
 
-    // CommitLog.start()
+    // CommitLog 启动相关服务
     public void start() {
-        //
+        // 刷新PageCache 到 磁盘线程服务
         this.flushCommitLogService.start();
 
-
+        // 如果开启了transientStorePool才启动该线程
         if (defaultMessageStore.getMessageStoreConfig().isTransientStorePoolEnable()) {
-            // 提交到FileChannel线程start
+            // 启动提交CommitLog消息到FileChannel线程服务
             this.commitLogService.start();
         }
     }
@@ -997,6 +997,8 @@ public class CommitLog {
         protected static final int RETRY_TIMES_OVER = 10;
     }
 
+    // 将CommitLog中消息提交到FileChannel中的线程服务
+    // 只有开启了transientStorePool才会启动该线程
     class CommitRealTimeService extends FlushCommitLogService {
 
         // 上次commit时间
@@ -1011,16 +1013,21 @@ public class CommitLog {
         public void run() {
             CommitLog.log.info(this.getServiceName() + " service started");
             while (!this.isStopped()) {
+                // 提交间隔：默认200ms
                 int interval = CommitLog.this.defaultMessageStore.getMessageStoreConfig().getCommitIntervalCommitLog();
-
+                // commit CommitLog 最小的页数 默认4页
                 int commitDataLeastPages = CommitLog.this.defaultMessageStore.getMessageStoreConfig().getCommitCommitLogLeastPages();
 
                 int commitDataThoroughInterval =
                     CommitLog.this.defaultMessageStore.getMessageStoreConfig().getCommitCommitLogThoroughInterval();
 
+
+                // 离上次提交时间超过commitDataThoroughInterval，则设置commitDataLeastPages为0？
                 long begin = System.currentTimeMillis();
                 if (begin >= (this.lastCommitTimestamp + commitDataThoroughInterval)) {
                     this.lastCommitTimestamp = begin;
+
+                    //？
                     commitDataLeastPages = 0;
                 }
 
@@ -1082,6 +1089,7 @@ public class CommitLog {
                     if (flushCommitLogTimed) {
                         Thread.sleep(interval);
                     } else {
+                        // 等待 interval
                         this.waitForRunning(interval);
                     }
 
@@ -1299,7 +1307,7 @@ public class CommitLog {
             // STORETIMESTAMP + STOREHOSTADDRESS + OFFSET <br>
 
             // PHY OFFSET
-            // 要写入的当前消息在整个CommitLog文件组的物理偏移量
+            // 要写入的当前消息在整个CommitLog文件组的全局物理偏移量
             long wroteOffset = fileFromOffset + byteBuffer.position();
 
             int sysflag = msgInner.getSysFlag();
@@ -1413,6 +1421,7 @@ public class CommitLog {
             // 6 QUEUEOFFSET
             this.msgStoreItemMemory.putLong(queueOffset);
             // 7 PHYSICALOFFSET
+            // 全局物理偏移量
             this.msgStoreItemMemory.putLong(fileFromOffset + byteBuffer.position());
             // 8 SYSFLAG
             this.msgStoreItemMemory.putInt(msgInner.getSysFlag());

@@ -57,7 +57,7 @@ public class MessageStoreConfig {
     // Only used if TransientStorePool enabled
     // flush data to FileChannel
     // flush 数据到 FileChannel
-    // 提交CommitLog间隔，默认200ms
+    // 提交CommitLog到FileChannl的间隔，默认200ms
     @ImportantField
     private int commitIntervalCommitLog = 200;
 
@@ -99,14 +99,14 @@ public class MessageStoreConfig {
     // How many pages are to be flushed when flush CommitLog
     private int flushCommitLogLeastPages = 4;
     // How many pages are to be committed when commit data to file
-    // commit commitlog 最小的页数
+    // commit CommitLog 最小的页数
     private int commitCommitLogLeastPages = 4;
     // Flush page size when the disk in warming state
     private int flushLeastPagesWhenWarmMapedFile = 1024 / 4 * 16;
     // How many pages are to be flushed when flush ConsumeQueue
     private int flushConsumeQueueLeastPages = 2;
     private int flushCommitLogThoroughInterval = 1000 * 10;
-    //
+    // ？？
     private int commitCommitLogThoroughInterval = 200;
     private int flushConsumeQueueThoroughInterval = 1000 * 60;
     @ImportantField
