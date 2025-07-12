@@ -48,6 +48,7 @@ public class Consumer {
          * }
          * </pre>
          */
+        consumer.setNamesrvAddr("127.0.0.1:9876");
 
 
         consumer.setNamesrvAddr("127.0.0.1:9876");

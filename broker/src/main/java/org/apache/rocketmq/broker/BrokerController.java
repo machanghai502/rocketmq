@@ -232,10 +232,14 @@ public class BrokerController {
     }
 
     public boolean initialize() throws CloneNotSupportedException {
+        // 路径：org.apache.rocketmq.broker.BrokerPathConfigHelper
+        // 加载 user.home/store/config/topics.json
         boolean result = this.topicConfigManager.load();
-
+        // 加载 user.home/store/config/consumerOffset.json
         result = result && this.consumerOffsetManager.load();
+        // 加载 user.home/store/config/subscriptionGroup.json
         result = result && this.subscriptionGroupManager.load();
+        // 加载 user.home/store/config/consumerFilter.json
         result = result && this.consumerFilterManager.load();
 
         if (result) {
@@ -849,6 +853,7 @@ public class BrokerController {
     }
 
     public void start() throws Exception {
+        // messageStore 启动
         if (this.messageStore != null) {
             this.messageStore.start();
         }
@@ -887,6 +892,7 @@ public class BrokerController {
             this.registerBrokerAll(true, false, true);
         }
 
+        // 定时任务，每30秒向所有namesrv发送心跳包，时间间隔未10秒-60秒
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override

@@ -61,13 +61,17 @@ import org.apache.rocketmq.store.index.QueryOffsetResult;
 import org.apache.rocketmq.store.schedule.ScheduleMessageService;
 import org.apache.rocketmq.store.stats.BrokerStatsManager;
 
+// 所有涉及到消息存储的类
+// 可以理解为对应目录:ROCKETMQ_HOME/store/
 public class DefaultMessageStore implements MessageStore {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
     private final MessageStoreConfig messageStoreConfig;
     // CommitLog
+    // 代表是RocketMQ的存储消息日志（逻辑概念，不直接对应实际的物理文件）
     private final CommitLog commitLog;
 
+    // ConsumeQueue集合，按照不同Topic 和 QueueID 进行组织
     private final ConcurrentMap<String/* topic */, ConcurrentMap<Integer/* queueId */, ConsumeQueue>> consumeQueueTable;
 
     private final FlushConsumeQueueService flushConsumeQueueService;
@@ -113,6 +117,7 @@ public class DefaultMessageStore implements MessageStore {
 
     boolean shutDownNormal = false;
 
+    // 实例化DefaultMessageStore
     public DefaultMessageStore(final MessageStoreConfig messageStoreConfig, final BrokerStatsManager brokerStatsManager,
         final MessageArrivingListener messageArrivingListener, final BrokerConfig brokerConfig) throws IOException {
         this.messageArrivingListener = messageArrivingListener;
@@ -120,6 +125,9 @@ public class DefaultMessageStore implements MessageStore {
         this.messageStoreConfig = messageStoreConfig;
         this.brokerStatsManager = brokerStatsManager;
         this.allocateMappedFileService = new AllocateMappedFileService(this);
+
+        // 实例化CommitLog
+        // 是否开启Dledger
         if (messageStoreConfig.isEnableDLegerCommitLog()) {
             this.commitLog = new DLedgerCommitLog(this);
         } else {
@@ -137,6 +145,8 @@ public class DefaultMessageStore implements MessageStore {
         } else {
             this.haService = null;
         }
+
+        //创建构建ConsumeQueue线程服务类实例
         this.reputMessageService = new ReputMessageService();
 
         this.scheduleMessageService = new ScheduleMessageService(this);
@@ -215,6 +225,7 @@ public class DefaultMessageStore implements MessageStore {
     /**
      * @throws Exception
      */
+    // MessageStore启动一些列相关任务
     public void start() throws Exception {
 
         lock = lockFile.getChannel().tryLock(0, 1, false);
@@ -256,7 +267,11 @@ public class DefaultMessageStore implements MessageStore {
             }
             log.info("[SetReputOffset] maxPhysicalPosInLogicQueue={} clMinOffset={} clMaxOffset={} clConfirmedOffset={}",
                 maxPhysicalPosInLogicQueue, this.commitLog.getMinOffset(), this.commitLog.getMaxOffset(), this.commitLog.getConfirmOffset());
+
+
             this.reputMessageService.setReputFromOffset(maxPhysicalPosInLogicQueue);
+
+            // 启动构建ConsumeQueue线程
             this.reputMessageService.start();
 
             /**
@@ -278,8 +293,12 @@ public class DefaultMessageStore implements MessageStore {
             this.handleScheduleMessageService(messageStoreConfig.getBrokerRole());
         }
 
+        //
         this.flushConsumeQueueService.start();
+
+        // 启动 CommitLog相关服务
         this.commitLog.start();
+
         this.storeStatsService.start();
 
         this.createTempFile();
@@ -351,6 +370,8 @@ public class DefaultMessageStore implements MessageStore {
         }
     }
 
+    // 存储一个消息到store中
+    // Store a message into store.
     public PutMessageResult putMessage(MessageExtBrokerInner msg) {
         if (this.shutdown) {
             log.warn("message store has shutdown, so putMessage is forbidden");
@@ -377,11 +398,14 @@ public class DefaultMessageStore implements MessageStore {
             this.printTimes.set(0);
         }
 
+        // topic名称大小限制
+        // 长度超过127个字符，也就是最大127个字符
         if (msg.getTopic().length() > Byte.MAX_VALUE) {
             log.warn("putMessage message topic length too long " + msg.getTopic().length());
             return new PutMessageResult(PutMessageStatus.MESSAGE_ILLEGAL, null);
         }
 
+        // 消息属性长度不能超过32767个字符
         if (msg.getPropertiesString() != null && msg.getPropertiesString().length() > Short.MAX_VALUE) {
             log.warn("putMessage message properties length too long " + msg.getPropertiesString().length());
             return new PutMessageResult(PutMessageStatus.PROPERTIES_SIZE_EXCEEDED, null);
@@ -1774,8 +1798,10 @@ public class DefaultMessageStore implements MessageStore {
         }
     }
 
+    // 构建ConsumeQueue线程服务类，转发消息用来构建ConsumeQueue和Index
     class ReputMessageService extends ServiceThread {
 
+        // 从从哪个全局物理偏移量开始转发消息给ConsumeQueue和Index文件
         private volatile long reputFromOffset = 0;
 
         public long getReputFromOffset() {
@@ -1807,11 +1833,14 @@ public class DefaultMessageStore implements MessageStore {
             return DefaultMessageStore.this.commitLog.getMaxOffset() - this.reputFromOffset;
         }
 
+        // 判断当前开始转发的全局物理offset是否小于CommitLog文件组最大的全局物理offset
         private boolean isCommitLogAvailable() {
             return this.reputFromOffset < DefaultMessageStore.this.commitLog.getMaxOffset();
         }
 
         private void doReput() {
+
+            // 判断转发全局物理偏移量如果比当前最小物理偏移量小，则设置为当前最小物理偏移量
             if (this.reputFromOffset < DefaultMessageStore.this.commitLog.getMinOffset()) {
                 log.warn("The reputFromOffset={} is smaller than minPyOffset={}, this usually indicate that the dispatch behind too much and the commitlog has expired.",
                     this.reputFromOffset, DefaultMessageStore.this.commitLog.getMinOffset());
@@ -1819,11 +1848,14 @@ public class DefaultMessageStore implements MessageStore {
             }
             for (boolean doNext = true; this.isCommitLogAvailable() && doNext; ) {
 
+                //
                 if (DefaultMessageStore.this.getMessageStoreConfig().isDuplicationEnable()
                     && this.reputFromOffset >= DefaultMessageStore.this.getConfirmOffset()) {
                     break;
                 }
 
+                // 选择要转发的消息
+                // 回reputFromOffset偏移量开始的全部有效数据（CommitLog文件）
                 SelectMappedBufferResult result = DefaultMessageStore.this.commitLog.getData(reputFromOffset);
                 if (result != null) {
                     try {

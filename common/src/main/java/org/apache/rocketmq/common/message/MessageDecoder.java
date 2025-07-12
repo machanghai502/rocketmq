@@ -30,6 +30,7 @@ import java.util.Map;
 import org.apache.rocketmq.common.UtilAll;
 import org.apache.rocketmq.common.sysflag.MessageSysFlag;
 
+// 消息编码器
 public class MessageDecoder {
 //    public final static int MSG_ID_LENGTH = 8 + 8;
 
@@ -58,6 +59,7 @@ public class MessageDecoder {
 //        + 4 // 13 RECONSUMETIMES
 //        + 8; // 14 Prepared Transaction Offset
 
+    // 消息ID格式:4 字节IP 4字节端口，8字节消息物理偏移量
     public static String createMessageId(final ByteBuffer input, final ByteBuffer addr, final long offset) {
         input.flip();
         int msgIDLength = addr.limit() == 8 ? 16 : 28;
@@ -438,6 +440,7 @@ public class MessageDecoder {
         return map;
     }
 
+    //将消息体按照一定格式放到字节数组中。
     public static byte[] encodeMessage(Message message) {
         //only need flag, body, properties
         byte[] body = message.getBody();
@@ -447,6 +450,11 @@ public class MessageDecoder {
         //note properties length must not more than Short.MAX
         short propertiesLength = (short) propertiesBytes.length;
         int sysFlag = message.getFlag();
+
+        // 该条消息的字节数组长度
+        // 4个字节总长度 +4个字节魔数 + 4个字节bodycrc + 4个字节flag +
+        // 4个字节的body长度 +  message body字节数组长度 + 2个字节的属性长度
+        // + 扩展属性的字节数
         int storeSize = 4 // 1 TOTALSIZE
             + 4 // 2 MAGICCOD
             + 4 // 3 BODYCRC
@@ -455,24 +463,32 @@ public class MessageDecoder {
             + 2 + propertiesLength;
         ByteBuffer byteBuffer = ByteBuffer.allocate(storeSize);
         // 1 TOTALSIZE
+        // 4个字节总长度
         byteBuffer.putInt(storeSize);
 
         // 2 MAGICCODE
+        // 4个字节魔数
         byteBuffer.putInt(0);
 
         // 3 BODYCRC
+        // 4个字节bodycrc
         byteBuffer.putInt(0);
 
         // 4 FLAG
+        // 4个字节flag
         int flag = message.getFlag();
         byteBuffer.putInt(flag);
 
         // 5 BODY
+        // 4个字节的body长度
         byteBuffer.putInt(bodyLen);
+        // message body字节数组长度
         byteBuffer.put(body);
 
         // 6 properties
+        // 2个字节的属性长度
         byteBuffer.putShort(propertiesLength);
+        // 扩展属性的字节数
         byteBuffer.put(propertiesBytes);
 
         return byteBuffer.array();
@@ -511,6 +527,7 @@ public class MessageDecoder {
 
     public static byte[] encodeMessages(List<Message> messages) {
         //TO DO refactor, accumulate in one buffer, avoid copies
+        // 每条消息都会按照一定格式存储到一个字节数组中，一共messages个消息
         List<byte[]> encodedMessages = new ArrayList<byte[]>(messages.size());
         int allSize = 0;
         for (Message message : messages) {
@@ -518,6 +535,8 @@ public class MessageDecoder {
             encodedMessages.add(tmp);
             allSize += tmp.length;
         }
+
+        //encodedMessages 复制到allBytes字节数组中
         byte[] allBytes = new byte[allSize];
         int pos = 0;
         for (byte[] bytes : encodedMessages) {

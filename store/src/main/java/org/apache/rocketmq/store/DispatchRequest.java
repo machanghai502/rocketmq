@@ -18,6 +18,7 @@ package org.apache.rocketmq.store;
 
 import java.util.Map;
 
+// 分发CommitLog消息到ConsumeQueue和Index文件的请求实体
 public class DispatchRequest {
     private final String topic;
     private final int queueId;
