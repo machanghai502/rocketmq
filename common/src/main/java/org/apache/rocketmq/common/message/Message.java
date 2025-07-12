@@ -22,12 +22,17 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
+// 消息封装类
 public class Message implements Serializable {
     private static final long serialVersionUID = 8445773977080406428L;
-
+    // 消息所属主题
     private String topic;
+    // 消息标记
     private int flag;
+    // 扩展属性 / 其他属性
+    // 消息tag，用于消息过滤
     private Map<String, String> properties;
+    // 消息体
     private byte[] body;
     private String transactionId;
 
@@ -38,6 +43,15 @@ public class Message implements Serializable {
         this(topic, "", "", 0, body, true);
     }
 
+    /**
+     * Message全属性构造函数
+     * @param topic
+     * @param tags  消息tag，用于消息过滤
+     * @param keys 消息索引键，用空格隔开，RocketMQ可以根据这些 key（键）快速检索消息
+     * @param flag
+     * @param body
+     * @param waitStoreMsgOK 消息发送时是否等消息存储完成后再返回
+     */
     public Message(String topic, String tags, String keys, int flag, byte[] body, boolean waitStoreMsgOK) {
         this.topic = topic;
         this.flag = flag;

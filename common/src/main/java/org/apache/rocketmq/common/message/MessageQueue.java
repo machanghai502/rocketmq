@@ -18,10 +18,17 @@ package org.apache.rocketmq.common.message;
 
 import java.io.Serializable;
 
+
+//topic中的一个broker中的一个队列信息，
+
 public class MessageQueue implements Comparable<MessageQueue>, Serializable {
     private static final long serialVersionUID = 6191200464116433425L;
+
+    //队列所属的topic
     private String topic;
+    //队列所属的brokerName
     private String brokerName;
+    // messageQueue 队列id，同一个broker下不同，从0开始，不同broker间可以重复
     private int queueId;
 
     public MessageQueue() {

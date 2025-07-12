@@ -73,6 +73,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Just for testing or demo program
+     * 默认topicKey
      */
     private String createTopicKey = MixAll.AUTO_CREATE_TOPIC_KEY_TOPIC;
 
@@ -83,11 +84,13 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Timeout for sending messages.
+     * 发送消息的超时时间，默认为3s
      */
     private int sendMsgTimeout = 3000;
 
     /**
      * Compress message body threshold, namely, message body larger than 4k will be compressed on default.
+     * 消息体超过该值则启用压缩，默认为4KB
      */
     private int compressMsgBodyOverHowmuch = 1024 * 4;
 
@@ -95,6 +98,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * Maximum number of retry to perform internally before claiming sending failure in synchronous mode. </p>
      *
      * This may potentially cause message duplication which is up to application developers to resolve.
+     * 可靠同步方式发送消息重试次数，默认为2，总共执行3次
      */
     private int retryTimesWhenSendFailed = 2;
 
@@ -102,6 +106,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * Maximum number of retry to perform internally before claiming sending failure in asynchronous mode. </p>
      *
      * This may potentially cause message duplication which is up to application developers to resolve.
+     * 可靠异步方式发送消息的重试次数，默认为2
      */
     private int retryTimesWhenSendAsyncFailed = 2;
 
@@ -112,6 +117,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Maximum allowed message size in bytes.
+     * 允许发送的最大消息长度，默认为4MB，最大值为232-1
      */
     private int maxMessageSize = 1024 * 1024 * 4; // 4M
 
@@ -303,7 +309,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Send message in synchronous mode. This method returns only when the sending procedure totally completes. </p>
-     *
+     * 同步消息发送入口 超时时间为3s
      * <strong>Warn:</strong> this method has internal retry-mechanism, that is, internal implementation will retry
      * {@link #retryTimesWhenSendFailed} times before claiming failure. As a result, multiple messages may potentially
      * delivered to broker(s). It's up to the application developers to resolve potential duplication issue.
@@ -319,7 +325,9 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     @Override
     public SendResult send(
         Message msg) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+        // 发送之前，验证消息“主题名称、消息体不能为空，消息长度不能等于0且默认不能超过允许发送消息的最大长度4MB（maxMessageSize=1024×1024×4）
         Validators.checkMessage(msg, this);
+        //
         msg.setTopic(withNamespace(msg.getTopic()));
         return this.defaultMQProducerImpl.send(msg);
     }
@@ -771,7 +779,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Search consume queue offset of the given time stamp.
-     *
+     * 根据时间戳从消费队列中查找其偏移量，和时间戳有关系？
      * @param mq Instance of MessageQueue
      * @param timestamp from when in milliseconds.
      * @return Consume queue offset.
@@ -784,7 +792,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Query maximum offset of the given message queue.
-     *
+     * 查找该消息队列中最大的物理偏移量
      * This method will be removed in a certain version after April 5, 2020, so please do not use this method.
      *
      * @param mq Instance of MessageQueue
@@ -799,7 +807,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Query minimum offset of the given message queue.
-     *
+     * 查找该消息队列中的最小物理偏移量
      * This method will be removed in a certain version after April 5, 2020, so please do not use this method.
      *
      * @param mq Instance of MessageQueue
@@ -829,7 +837,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Query message of the given offset message ID.
-     *
+     * 根据消息偏移量查找消息
      * This method will be removed in a certain version after April 5, 2020, so please do not use this method.
      *
      * @param offsetMsgId message id
@@ -850,7 +858,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * Query message by key.
      *
      * This method will be removed in a certain version after April 5, 2020, so please do not use this method.
-     *
+     * 根据条件查询消息
      * @param topic message topic
      * @param key message key index word
      * @param maxNum max message number

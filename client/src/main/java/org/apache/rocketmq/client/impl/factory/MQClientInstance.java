@@ -98,9 +98,13 @@ public class MQClientInstance {
     private final NettyClientConfig nettyClientConfig;
     private final MQClientAPIImpl mQClientAPIImpl;
     private final MQAdminImpl mQAdminImpl;
+
+    // 客户端缓存的路由信息表
     private final ConcurrentMap<String/* Topic */, TopicRouteData> topicRouteTable = new ConcurrentHashMap<String, TopicRouteData>();
     private final Lock lockNamesrv = new ReentrantLock();
     private final Lock lockHeartbeat = new ReentrantLock();
+
+    // 客户端缓存的主从broker表
     private final ConcurrentMap<String/* Broker Name */, HashMap<Long/* brokerId */, String/* address */>> brokerAddrTable =
         new ConcurrentHashMap<String, HashMap<Long, String>>();
     private final ConcurrentMap<String/* Broker Name */, HashMap<String/* address */, Integer>> brokerVersionTable =
@@ -178,9 +182,12 @@ public class MQClientInstance {
             List<QueueData> qds = route.getQueueDatas();
             Collections.sort(qds);
             for (QueueData qd : qds) {
+                // 循环判断topic下的队列是否是写入权限，需要找一个有写入权限的队列
                 if (PermName.isWriteable(qd.getPerm())) {
                     BrokerData brokerData = null;
+                    // 确定有对应的broker主节点，如果没有则进行下一个QueueData的判断
                     for (BrokerData bd : route.getBrokerDatas()) {
+                        // 根据brokerName找到对应的brokerData主从信息
                         if (bd.getBrokerName().equals(qd.getBrokerName())) {
                             brokerData = bd;
                             break;
@@ -195,7 +202,9 @@ public class MQClientInstance {
                         continue;
                     }
 
+                    // 到这里说明该QueueData队列有写入权限同时有对应的broker主节点
                     for (int i = 0; i < qd.getWriteQueueNums(); i++) {
+                        //根据写队列个数，topic+序号创建MessageQueue，填充topicPublishInfo的List<MessageQueue>，完成消息发送的路由查找
                         MessageQueue mq = new MessageQueue(topic, qd.getBrokerName(), i);
                         info.getMessageQueueList().add(mq);
                     }
@@ -604,12 +613,25 @@ public class MQClientInstance {
         }
     }
 
+    // 如果isDefault为true，则使用默认主题查询
+
+    /**
+     * 如果isDefault为true，则使用默认主题查询，如果查询
+     * 到路由信息，则将路由信息中读写队列的个数替换为消息生产者默认
+     * 的队列个数（defaultTopicQueueNums）；如果isDefault为false，则
+     * 使用参数topic查询，如果未查询到路由信息，则返回false
+     * @param topic
+     * @param isDefault
+     * @param defaultMQProducer
+     * @return
+     */
     public boolean updateTopicRouteInfoFromNameServer(final String topic, boolean isDefault,
         DefaultMQProducer defaultMQProducer) {
         try {
             if (this.lockNamesrv.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
                 try {
                     TopicRouteData topicRouteData;
+                    // 如果isDefault为true，则使用默认主题查询
                     if (isDefault && defaultMQProducer != null) {
                         topicRouteData = this.mQClientAPIImpl.getDefaultTopicRouteInfoFromNameServer(defaultMQProducer.getCreateTopicKey(),
                             1000 * 3);
@@ -623,6 +645,8 @@ public class MQClientInstance {
                     } else {
                         topicRouteData = this.mQClientAPIImpl.getTopicRouteInfoFromNameServer(topic, 1000 * 3);
                     }
+
+                    // 从nameserver中获取到了路由信息
                     if (topicRouteData != null) {
                         TopicRouteData old = this.topicRouteTable.get(topic);
                         boolean changed = topicRouteDataIsChange(old, topicRouteData);
@@ -641,6 +665,7 @@ public class MQClientInstance {
 
                             // Update Pub info
                             {
+                                // topicRouteDat  to TopicPublishInfo
                                 TopicPublishInfo publishInfo = topicRouteData2TopicPublishInfo(topic, topicRouteData);
                                 publishInfo.setHaveTopicRouterInfo(true);
                                 Iterator<Entry<String, MQProducerInner>> it = this.producerTable.entrySet().iterator();
