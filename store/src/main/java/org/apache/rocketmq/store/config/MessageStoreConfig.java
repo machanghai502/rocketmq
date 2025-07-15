@@ -97,6 +97,7 @@ public class MessageStoreConfig {
     // This check adds some overhead,so it may be disabled in cases seeking extreme performance.
     private boolean checkCRCOnRecover = true;
     // How many pages are to be flushed when flush CommitLog
+    // flush commitLog 最少的页数
     private int flushCommitLogLeastPages = 4;
     // How many pages are to be committed when commit data to file
     // commit CommitLog 最小的页数

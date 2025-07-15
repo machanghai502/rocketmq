@@ -36,6 +36,7 @@ public abstract class ReferenceResource {
         return false;
     }
 
+    // 什么是文件可用？
     public boolean isAvailable() {
         return this.available;
     }

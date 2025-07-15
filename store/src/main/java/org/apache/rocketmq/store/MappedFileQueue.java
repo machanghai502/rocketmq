@@ -54,6 +54,7 @@ public class MappedFileQueue {
     private final AllocateMappedFileService allocateMappedFileService;
 
     // 当前刷盘指针，表示该指针之前的所有数据全部持久化到磁盘。
+    // 全局物理指针？？
     private long flushedWhere = 0;
 
     // 当前数据Commit指针，内存中ByteBuffer当前的写指针，该值大于、等于flushedWhere。
@@ -61,6 +62,7 @@ public class MappedFileQueue {
     // 已经提交到FileChannel的CommitLog文件组的全局物理偏移量
     private long committedWhere = 0;
 
+    //
     private volatile long storeTimestamp = 0;
 
     public MappedFileQueue(final String storePath, int mappedFileSize,
@@ -444,13 +446,17 @@ public class MappedFileQueue {
         return deleteCount;
     }
 
+    // flush pageCache
     public boolean flush(final int flushLeastPages) {
         boolean result = true;
         MappedFile mappedFile = this.findMappedFileByOffset(this.flushedWhere, this.flushedWhere == 0);
         if (mappedFile != null) {
             long tmpTimeStamp = mappedFile.getStoreTimestamp();
+            // 当前mappedFile的偏移量
             int offset = mappedFile.flush(flushLeastPages);
+            // mappedFile的全局物理起始偏移量 + offset
             long where = mappedFile.getFileFromOffset() + offset;
+            // 全局物理偏移量
             result = where == this.flushedWhere;
             this.flushedWhere = where;
             if (0 == flushLeastPages) {

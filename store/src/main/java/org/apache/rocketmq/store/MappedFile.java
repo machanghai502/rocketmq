@@ -55,8 +55,10 @@ public class MappedFile extends ReferenceResource {
     // MappedFile当前的写指针
     // 因为对应的是CommitLog，最大就是1G
     // 当前CommitLog文件中已经写入到字节缓冲区的偏移位置
+    // 如果是开启了pool？ 没开启pool？
     protected final AtomicInteger wrotePosition = new AtomicInteger(0);
     // 当前CommitLog文件中已经提交到FileChannel的偏移位置
+    // 如果开启transientStorePool，则数据会存储在TransientStorePool中，然后提交到内存映射ByteBuffer中，也就是开启了pool才会有提交动作
     protected final AtomicInteger committedPosition = new AtomicInteger(0);
     // 当前文件中已经flush到磁盘的字节偏移位置
     private final AtomicInteger flushedPosition = new AtomicInteger(0);
@@ -170,6 +172,8 @@ public class MappedFile extends ReferenceResource {
 
     // MappedFile初始化
     // 开启了transientStorePool调用这个方法
+    // 如果transientStorePoolEnable开启了，则初始化MappedFile的writeBuffer，否则writeBuffer为空。
+    // 该buffer从transientStorePool中获取。
     public void init(final String fileName, final int fileSize,
         final TransientStorePool transientStorePool) throws IOException {
         init(fileName, fileSize);
@@ -246,24 +250,25 @@ public class MappedFile extends ReferenceResource {
         if (currentPos < this.fileSize) {
             ByteBuffer byteBuffer = writeBuffer != null ? writeBuffer.slice() : this.mappedByteBuffer.slice();
 
-            System.out.println("limit:" + writeBuffer.limit());
-            System.out.println("position:" + writeBuffer.position());
-            System.out.println("capacity:" + writeBuffer.capacity());
+//            System.out.println("limit:" + writeBuffer.limit());
+//            System.out.println("position:" + writeBuffer.position());
+//            System.out.println("capacity:" + writeBuffer.capacity());
+//
+//            System.out.println("=====after slice()========");
+//
+//            System.out.println("limit:" + byteBuffer.limit());
+//            System.out.println("position:" + byteBuffer.position());
+//            System.out.println("capacity:" + byteBuffer.capacity());
 
-            System.out.println("=====after slice()========");
-
-            System.out.println("limit:" + byteBuffer.limit());
-            System.out.println("position:" + byteBuffer.position());
-            System.out.println("capacity:" + byteBuffer.capacity());
-
-            // ？？为啥？？？
+            // 应该是mappedByteBuffer的position一直是0，所有slice后的byteButter的position也是0，但是要从指定偏移量写入数据，所以需要设置下
+            // 最新的potision。
             byteBuffer.position(currentPos);
 
-            System.out.println("=====slice byteBuffer set position ========");
-
-            System.out.println("limit:" + byteBuffer.limit());
-            System.out.println("position:" + byteBuffer.position());
-            System.out.println("capacity:" + byteBuffer.capacity());
+//            System.out.println("=====slice byteBuffer set position ========");
+//
+//            System.out.println("limit:" + byteBuffer.limit());
+//            System.out.println("position:" + byteBuffer.position());
+//            System.out.println("capacity:" + byteBuffer.capacity());
 
             AppendMessageResult result;
             // 单条消息写入
@@ -338,23 +343,38 @@ public class MappedFile extends ReferenceResource {
     /**
      * @return The current flushed position
      */
+    // 返回当前文件的flush后的偏移量
+    // 调用mappedByteBuffer或fileChannel的force()方法将PageCache中的脏数据写入磁盘，将内存中的数据持久化到磁盘中
+    // flushedPosition应该等于MappedByteBuffer中的写指针
+    /*
+        如果writeBuffer不为空，说明需要提交步骤，提交到commit，然后flush到当前commited指针，所以flushedPosition应等于commit指针。
+        因为上一次提交的数据就是进入MappedByteBuffer中的数据。
+        如果writeBuffer为空，表示数据是直接进入MappedByteBuffer的，没有commit操作，此时flush的到wrotePosition的位置，
+        此时wrotePosition代表的是MappedByteBuffer中的指针，故设置flushedPosition为wrotePosition
+     */
     public int flush(final int flushLeastPages) {
+        // 是否可以进行flush操作
         if (this.isAbleToFlush(flushLeastPages)) {
+            // ？？
             if (this.hold()) {
                 int value = getReadPosition();
 
                 try {
                     //We only append data to fileChannel or mappedByteBuffer, never both.
+                    // writeBuffer不为空的是开启了缓存？但是开启了缓存池，和不开启调用的为什么不一样？
                     if (writeBuffer != null || this.fileChannel.position() != 0) {
                         this.fileChannel.force(false);
                     } else {
+                        // 强制刷盘
                         this.mappedByteBuffer.force();
                     }
                 } catch (Throwable e) {
                     log.error("Error occurred when force data to disk.", e);
                 }
 
+                // 设置flush后的最新位置
                 this.flushedPosition.set(value);
+                // ？？
                 this.release();
             } else {
                 log.warn("in flush, hold failed, flush offset = " + this.flushedPosition.get());
@@ -393,7 +413,7 @@ public class MappedFile extends ReferenceResource {
         return this.committedPosition.get();
     }
 
-    // 将writeBuffer中的committedPostion 到 writePosition之间的字节写入到fileChannel（pageCache中）
+    // 将writeBuffer中的committedPosition 到 writePosition之间的字节写入到fileChannel（pageCache中）
     protected void commit0(final int commitLeastPages) {
         int writePos = this.wrotePosition.get();
         int lastCommittedPosition = this.committedPosition.get();
@@ -419,14 +439,17 @@ public class MappedFile extends ReferenceResource {
         int flush = this.flushedPosition.get();
         int write = getReadPosition();
 
+        // 文件写满了 则可以flush
         if (this.isFull()) {
             return true;
         }
 
         if (flushLeastPages > 0) {
+            // write的偏移量和flush的偏移量 是否相差4页，如果相差4页，则可以flush操作。
             return ((write / OS_PAGE_SIZE) - (flush / OS_PAGE_SIZE)) >= flushLeastPages;
         }
 
+        // flushLeastPages<=0的时候，代表只要write的偏移量大于flush的偏移量就要进行flush操作
         return write > flush;
     }
 
@@ -517,6 +540,7 @@ public class MappedFile extends ReferenceResource {
         return true;
     }
 
+    // MappedFile 销毁
     public boolean destroy(final long intervalForcibly) {
         this.shutdown(intervalForcibly);
 
@@ -555,7 +579,9 @@ public class MappedFile extends ReferenceResource {
     /**
      * @return The max position which have valid data
      */
-    //
+    // 此时获取的是已经写入MappedByteBuffer或FileChannel中的数据的指针。
+    // 如果writeBuffer为空，说明数据直接写入MappedByteBuffer，所以返回的当前写指针。
+    // 如果writeBuffer不为空，说明数据是先写入writeBuffer，所以返回的是当前的提交指针。
     public int getReadPosition() {
         return this.writeBuffer == null ? this.wrotePosition.get() : this.committedPosition.get();
     }

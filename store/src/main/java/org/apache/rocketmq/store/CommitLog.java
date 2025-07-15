@@ -906,7 +906,8 @@ public class CommitLog {
         return -1;
     }
 
-    // 获取当前CommitLog文件组中最小的全局物理偏移量
+    // 获取当前CommitLog(目录)文件组中最小的全局物理偏移量
+    // 首先获取目录下的第一个文件，如果该文件可用，则返回该文件的起始偏移量，否则返回下一个文件的起始偏移量
     public long getMinOffset() {
         MappedFile mappedFile = this.mappedFileQueue.getFirstMappedFile();
         if (mappedFile != null) {
@@ -930,8 +931,12 @@ public class CommitLog {
         return null;
     }
 
+    // CommitLog全局物理偏移量
+    // 根据offset返回下一个文件的起始偏移量
     public long rollNextFile(final long offset) {
+        //
         int mappedFileSize = this.defaultMessageStore.getMessageStoreConfig().getMappedFileSizeCommitLog();
+        // ？？ 为什么要减去offset % mappedFileSize;
         return offset + mappedFileSize - offset % mappedFileSize;
     }
 
@@ -1059,6 +1064,8 @@ public class CommitLog {
         }
     }
 
+    // Flush 刷盘线程服务类
+    // 针对CommitLog文件的
     class FlushRealTimeService extends FlushCommitLogService {
         private long lastFlushTimestamp = 0;
         private long printTimes = 0;
@@ -1067,9 +1074,11 @@ public class CommitLog {
             CommitLog.log.info(this.getServiceName() + " service started");
 
             while (!this.isStopped()) {
+                //
                 boolean flushCommitLogTimed = CommitLog.this.defaultMessageStore.getMessageStoreConfig().isFlushCommitLogTimed();
 
                 int interval = CommitLog.this.defaultMessageStore.getMessageStoreConfig().getFlushIntervalCommitLog();
+                // flush commitLog least 4 pages
                 int flushPhysicQueueLeastPages = CommitLog.this.defaultMessageStore.getMessageStoreConfig().getFlushCommitLogLeastPages();
 
                 int flushPhysicQueueThoroughInterval =
@@ -1086,10 +1095,12 @@ public class CommitLog {
                 }
 
                 try {
+                    // ？？sleep是占用cpu的。
+                    // ？？
                     if (flushCommitLogTimed) {
                         Thread.sleep(interval);
                     } else {
-                        // 等待 interval
+                        // 等待 interval 时间 不占用cpu？
                         this.waitForRunning(interval);
                     }
 
@@ -1098,9 +1109,11 @@ public class CommitLog {
                     }
 
                     long begin = System.currentTimeMillis();
+                    // 默认刷新至少4个Page
                     CommitLog.this.mappedFileQueue.flush(flushPhysicQueueLeastPages);
                     long storeTimestamp = CommitLog.this.mappedFileQueue.getStoreTimestamp();
                     if (storeTimestamp > 0) {
+                        // 设置Checkpoint？？
                         CommitLog.this.defaultMessageStore.getStoreCheckpoint().setPhysicMsgTimestamp(storeTimestamp);
                     }
                     long past = System.currentTimeMillis() - begin;
