@@ -25,9 +25,8 @@ import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.store.config.BrokerRole;
 import org.apache.rocketmq.store.config.StorePathConfigHelper;
 
-// 代表消费队列
-// 对应一个消费队列文件：
-// 比如：RocketMQ_HOME/store/consumequeue/queueid/consumequeuefile
+// 对应一个topic下的一个队列下的所有ConsumeQueue文件：
+// 比如：RocketMQ_HOME/store/consumequeue/{topic}/{queueid}/...
 // 一个ConsumeQueue文件默认存储30W条消息索引项，大约6MB
 public class ConsumeQueue {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
@@ -38,18 +37,20 @@ public class ConsumeQueue {
 
     private final DefaultMessageStore defaultMessageStore;
 
-    // 代表一个topic下的一个队列下的所有consumeQueue文件
+    // 包含的是一个topic下的一个队列下的所有consumeQueue MappedFile文件
     private final MappedFileQueue mappedFileQueue;
     // 所属topic
     private final String topic;
     // 所属queueId
     private final int queueId;
 
-    //存储每条cq索引的字节缓冲区
+    //存储一条cq索引的字节缓冲区
     private final ByteBuffer byteBufferIndex;
 
-    // store目录存储路径：RocketMQ_HOME/store/
+    // consumequeue目录路径：RocketMQ_HOME/store/consumequeue/
     private final String storePath;
+
+    // 300000 * 20
     private final int mappedFileSize;
     private long maxPhysicOffset = -1;
     private volatile long minLogicOffset = 0;
@@ -58,6 +59,7 @@ public class ConsumeQueue {
     public ConsumeQueue(
         final String topic,
         final int queueId,
+        // store/consumequeue/
         final String storePath,
         final int mappedFileSize,
         final DefaultMessageStore defaultMessageStore) {
@@ -68,13 +70,15 @@ public class ConsumeQueue {
         this.topic = topic;
         this.queueId = queueId;
 
-        // {RocketMQ_HOME}/store/consumer/topic/{queueId}/
+        // {RocketMQ_HOME}/store/consumequeue/{topic}/{queueId}/
         String queueDir = this.storePath
             + File.separator + topic
             + File.separator + queueId;
 
+        // 维护当前topic下的queueid下的ConsumeQueue系列文件对应的所有MappedFile
         this.mappedFileQueue = new MappedFileQueue(queueDir, mappedFileSize, null);
 
+        // 20
         this.byteBufferIndex = ByteBuffer.allocate(CQ_STORE_UNIT_SIZE);
 
         if (defaultMessageStore.getMessageStoreConfig().isEnableConsumeQueueExt()) {
@@ -388,6 +392,7 @@ public class ConsumeQueue {
         return this.minLogicOffset / CQ_STORE_UNIT_SIZE;
     }
 
+    //
     public void putMessagePositionInfoWrapper(DispatchRequest request) {
         final int maxRetries = 30;
         boolean canWrite = this.defaultMessageStore.getRunningFlags().isCQWriteable();
@@ -407,6 +412,7 @@ public class ConsumeQueue {
                         topic, queueId, request.getCommitLogOffset());
                 }
             }
+
             boolean result = this.putMessagePositionInfo(request.getCommitLogOffset(),
                 request.getMsgSize(), tagsCode, request.getConsumeQueueOffset());
             if (result) {
@@ -434,6 +440,14 @@ public class ConsumeQueue {
         this.defaultMessageStore.getRunningFlags().makeLogicsQueueError();
     }
 
+    /**
+     *
+     * @param offset CommitLogOffset
+     * @param size 消息大小
+     * @param tagsCode tags hash码
+     * @param cqOffset ？？
+     * @return
+     */
     private boolean putMessagePositionInfo(final long offset, final int size, final long tagsCode,
         final long cqOffset) {
 
@@ -442,12 +456,14 @@ public class ConsumeQueue {
             return true;
         }
 
+        // 将消息偏移量、消息长度、tag哈希码写入ByteBuffer
         this.byteBufferIndex.flip();
         this.byteBufferIndex.limit(CQ_STORE_UNIT_SIZE);
         this.byteBufferIndex.putLong(offset);
         this.byteBufferIndex.putInt(size);
         this.byteBufferIndex.putLong(tagsCode);
 
+        //
         final long expectLogicOffset = cqOffset * CQ_STORE_UNIT_SIZE;
 
         MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile(expectLogicOffset);

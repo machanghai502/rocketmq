@@ -32,6 +32,7 @@ import org.apache.rocketmq.logging.InternalLoggerFactory;
 // MappedFileQueue是MappedFile的管理容器
 // 映射文件队列，对应各种文件的存储路径
 // 比如${ROCKET_HOME}/store/commitlog存储路径
+// {ROCKET_HOME}/store/consume
 
 public class MappedFileQueue {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);

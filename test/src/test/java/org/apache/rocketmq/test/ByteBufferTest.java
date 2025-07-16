@@ -1,5 +1,6 @@
 package org.apache.rocketmq.test;
 
+import org.apache.rocketmq.store.ConsumeQueue;
 import org.apache.rocketmq.test.util.MQWait;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
@@ -56,6 +57,12 @@ public class ByteBufferTest {
 //        System.out.println("limit:" + sliceByteBuffer.limit());
 //        System.out.println("position:" + sliceByteBuffer.position());
 //        System.out.println("capacity:" + sliceByteBuffer.capacity());
+
+
+        int mappedFileSizeConsumeQueue = 300000 * ConsumeQueue.CQ_STORE_UNIT_SIZE;
+        int factor = (int) Math.ceil(mappedFileSizeConsumeQueue / (ConsumeQueue.CQ_STORE_UNIT_SIZE * 1.0));
+        int aa =  (int) (factor * ConsumeQueue.CQ_STORE_UNIT_SIZE);
+        System.out.println(aa);
 
     }
 }

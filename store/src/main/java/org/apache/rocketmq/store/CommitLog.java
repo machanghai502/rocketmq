@@ -64,6 +64,7 @@ public class CommitLog {
     //
     private final AppendMessageCallback appendMessageCallback;
     private final ThreadLocal<MessageExtBatchEncoder> batchEncoderThreadLocal;
+
     //
     protected HashMap<String/* topic-queueid */, Long/* offset */> topicQueueTable = new HashMap<String, Long>(1024);
 
@@ -118,7 +119,7 @@ public class CommitLog {
 
     // CommitLog 启动相关服务
     public void start() {
-        // 刷新PageCache 到 磁盘线程服务
+        // 启动刷新PageCache 到 磁盘线程服务
         this.flushCommitLogService.start();
 
         // 如果开启了transientStorePool才启动该线程
@@ -168,11 +169,12 @@ public class CommitLog {
      * Read CommitLog data, use data replication
      */
     // offset CommitLog全局物理偏移量
+    // 获取指定offset开始的到read
     public SelectMappedBufferResult getData(final long offset) {
         return this.getData(offset, offset == 0);
     }
 
-    // 根据offset查找
+    // 根据全局物理偏移量offset获取到对应MappedFile文件内的偏移量到ReadPosition间的数据
     // offset CommitLog全局物理偏移量
     public SelectMappedBufferResult getData(final long offset, final boolean returnFirstOnNotFound) {
         // CommitLog file size == 1GB
@@ -269,10 +271,12 @@ public class CommitLog {
      *
      * @return 0 Come the end of the file // >0 Normal messages // -1 Message checksum failure
      */
+    // 检查消息并返回封装一条消息的DispatchRequest分发请求对象
     public DispatchRequest checkMessageAndReturnSize(java.nio.ByteBuffer byteBuffer, final boolean checkCRC,
         final boolean readBody) {
         try {
             // 1 TOTAL SIZE
+            // 一条消息的字节长度
             int totalSize = byteBuffer.getInt();
 
             // 2 MAGIC CODE
@@ -295,8 +299,11 @@ public class CommitLog {
 
             int flag = byteBuffer.getInt();
 
+            // ?
             long queueOffset = byteBuffer.getLong();
 
+            // commitLog PHYSICAL OFFSET
+            // commitLog 全局物理偏移量
             long physicOffset = byteBuffer.getLong();
 
             int sysFlag = byteBuffer.getInt();
@@ -1314,7 +1321,6 @@ public class CommitLog {
         }
 
         // byteBuffer：对一个整个CommitLog的ByteBuffer slice 的
-        //
         public AppendMessageResult doAppend(final long fileFromOffset, final ByteBuffer byteBuffer, final int maxBlank,
             final MessageExtBrokerInner msgInner) {
             // STORETIMESTAMP + STOREHOSTADDRESS + OFFSET <br>
@@ -1343,6 +1349,7 @@ public class CommitLog {
             }
 
             // Record ConsumeQueue information
+            // {topic} - {queueId}
             keyBuilder.setLength(0);
             keyBuilder.append(msgInner.getTopic());
             keyBuilder.append('-');
@@ -1433,7 +1440,7 @@ public class CommitLog {
             this.msgStoreItemMemory.putInt(msgInner.getFlag());
             // 6 QUEUEOFFSET
             this.msgStoreItemMemory.putLong(queueOffset);
-            // 7 PHYSICALOFFSET
+            // 7 PHYSICAL OFFSET
             // 全局物理偏移量
             this.msgStoreItemMemory.putLong(fileFromOffset + byteBuffer.position());
             // 8 SYSFLAG

@@ -37,7 +37,7 @@ public class MessageStoreConfig {
     // CommitLog文件大小 默认1G。
     private int mappedFileSizeCommitLog = 1024 * 1024 * 1024;
     // ConsumeQueue file size,default is 30W
-    // ConsumeQueue文件大小 300000条 * 20B == 6MB
+    // ConsumeQueue文件大小 300000条 * 20B  6MB
     private int mappedFileSizeConsumeQueue = 300000 * ConsumeQueue.CQ_STORE_UNIT_SIZE;
     // enable consume queue ext
     // ？？
@@ -121,6 +121,7 @@ public class MessageStoreConfig {
     @ImportantField
     private int accessMessageInMemoryMaxRatio = 40;
     @ImportantField
+    // 消息index文件开启。默认为true
     private boolean messageIndexEnable = true;
     private int maxHashSlotNum = 5000000;
     private int maxIndexNum = 5000000 * 4;
@@ -213,7 +214,7 @@ public class MessageStoreConfig {
     }
 
     public int getMappedFileSizeConsumeQueue() {
-
+        // 这个计算什么用呢？
         int factor = (int) Math.ceil(this.mappedFileSizeConsumeQueue / (ConsumeQueue.CQ_STORE_UNIT_SIZE * 1.0));
         return (int) (factor * ConsumeQueue.CQ_STORE_UNIT_SIZE);
     }

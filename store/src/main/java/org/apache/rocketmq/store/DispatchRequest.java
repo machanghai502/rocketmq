@@ -19,13 +19,20 @@ package org.apache.rocketmq.store;
 import java.util.Map;
 
 // 分发CommitLog消息到ConsumeQueue和Index文件的请求实体
+// 包含CommitLog的一条消息内容
 public class DispatchRequest {
     private final String topic;
     private final int queueId;
+
+    // commitLog PHYSICAL OFFSET
+    // commitLog 全局物理偏移量
     private final long commitLogOffset;
+
     private int msgSize;
     private final long tagsCode;
     private final long storeTimestamp;
+
+    //
     private final long consumeQueueOffset;
     private final String keys;
     private final boolean success;
@@ -55,6 +62,7 @@ public class DispatchRequest {
         this.topic = topic;
         this.queueId = queueId;
         this.commitLogOffset = commitLogOffset;
+        // 对应CommitLog的一条消息的字节数，消息长度
         this.msgSize = msgSize;
         this.tagsCode = tagsCode;
         this.storeTimestamp = storeTimestamp;

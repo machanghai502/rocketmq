@@ -22,13 +22,16 @@ import java.nio.ByteBuffer;
 public class SelectMappedBufferResult {
 
     // CommitLog全局物理偏移
+    // 对应mappedFile文件的起始全局物理偏移量
     private final long startOffset;
 
+    // 本次返回的ByteBuffer缓冲区
     private final ByteBuffer byteBuffer;
 
-    // 本次选择的字节数量
+    // 本次返回的字节数量
     private int size;
 
+    // 本次选中的字节缓冲区关联的MappedFile
     private MappedFile mappedFile;
 
     public SelectMappedBufferResult(long startOffset, ByteBuffer byteBuffer, int size, MappedFile mappedFile) {

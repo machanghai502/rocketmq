@@ -502,7 +502,8 @@ public class MappedFile extends ReferenceResource {
         return null;
     }
 
-    // pos 全局物理偏移量
+    // pos 当前文件的内的偏移量
+    // 返回指定全局物理偏移量到ReadPosition之间的MappedByteBuffer 区段数据
     public SelectMappedBufferResult selectMappedBuffer(int pos) {
         int readPosition = getReadPosition();
         if (pos < readPosition && pos >= 0) {
@@ -510,6 +511,7 @@ public class MappedFile extends ReferenceResource {
                 ByteBuffer byteBuffer = this.mappedByteBuffer.slice();
                 byteBuffer.position(pos);
                 int size = readPosition - pos;
+                //？？ 为什么用重新slice一个byteBuffer
                 ByteBuffer byteBufferNew = byteBuffer.slice();
                 byteBufferNew.limit(size);
                 return new SelectMappedBufferResult(this.fileFromOffset + pos, byteBufferNew, size, this);
@@ -580,8 +582,9 @@ public class MappedFile extends ReferenceResource {
      * @return The max position which have valid data
      */
     // 此时获取的是已经写入MappedByteBuffer或FileChannel中的数据的指针。
-    // 如果writeBuffer为空，说明数据直接写入MappedByteBuffer，所以返回的当前写指针。
-    // 如果writeBuffer不为空，说明数据是先写入writeBuffer，所以返回的是当前的提交指针。
+    // 如果writeBuffer为空，说明数据直接写入MappedByteBuffer，所以返回的当前写指针：writePosition
+    // 如果writeBuffer不为空，说明数据是先写入writeBuffer，所以返回的是当前的提交指针：commitedPosition
+    // 这个是相对当前MappedFile文件的偏移量
     public int getReadPosition() {
         return this.writeBuffer == null ? this.wrotePosition.get() : this.committedPosition.get();
     }
