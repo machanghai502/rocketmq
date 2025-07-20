@@ -32,8 +32,8 @@ import org.apache.rocketmq.logging.InternalLoggerFactory;
 // MappedFileQueue是MappedFile的管理容器
 // 映射文件队列，对应各种文件的存储路径
 // 比如${ROCKET_HOME}/store/commitlog存储路径
-// {ROCKET_HOME}/store/consume
-
+// {ROCKET_HOME}/store/consume/{topic}/{queueId}/{所有文件}
+// index文件？
 public class MappedFileQueue {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
     private static final InternalLogger LOG_ERROR = InternalLoggerFactory.getLogger(LoggerName.STORE_ERROR_LOGGER_NAME);
@@ -45,6 +45,7 @@ public class MappedFileQueue {
     private final String storePath;
 
     // 每个CommitLog文件大小
+    // consumeQueue文件大小
     private final int mappedFileSize;
 
     // MappedFile集合，映射路径下的所有文件
@@ -143,9 +144,7 @@ public class MappedFileQueue {
     }
 
     void deleteExpiredFile(List<MappedFile> files) {
-
         if (!files.isEmpty()) {
-
             Iterator<MappedFile> iterator = files.iterator();
             while (iterator.hasNext()) {
                 MappedFile cur = iterator.next();
@@ -212,29 +211,36 @@ public class MappedFileQueue {
         return 0;
     }
 
+    // 根据cq全局字节偏移量查询Cq文件组下的最后一个cq文件
+    // 如果找不到，则创建一个
     public MappedFile getLastMappedFile(final long startOffset, boolean needCreate) {
         long createOffset = -1;
         MappedFile mappedFileLast = getLastMappedFile();
 
+        // 正常情况只有第一次才会是null，即一个cq文件都不存在。
         if (mappedFileLast == null) {
             createOffset = startOffset - (startOffset % this.mappedFileSize);
         }
 
+        // 当前cq文件存在但是已经写满了。
         if (mappedFileLast != null && mappedFileLast.isFull()) {
             createOffset = mappedFileLast.getFileFromOffset() + this.mappedFileSize;
         }
 
+        // 正常情况只有第一次才会是null，即一个cq文件都不存在。 和 当前cq文件存在但是已经写满了。 的时候创建新的cq文件。
         if (createOffset != -1 && needCreate) {
             String nextFilePath = this.storePath + File.separator + UtilAll.offset2FileName(createOffset);
             String nextNextFilePath = this.storePath + File.separator
                 + UtilAll.offset2FileName(createOffset + this.mappedFileSize);
             MappedFile mappedFile = null;
 
+            // allocateMappedFileService的作用？
             if (this.allocateMappedFileService != null) {
                 mappedFile = this.allocateMappedFileService.putRequestAndReturnMappedFile(nextFilePath,
                     nextNextFilePath, this.mappedFileSize);
             } else {
                 try {
+                    // 创建一个新的cq问文件
                     mappedFile = new MappedFile(nextFilePath, this.mappedFileSize);
                 } catch (IOException e) {
                     log.error("create mappedFile exception", e);
@@ -242,24 +248,30 @@ public class MappedFileQueue {
             }
 
             if (mappedFile != null) {
+                // 如果mappedFiles为空，则说明是第一个文件
                 if (this.mappedFiles.isEmpty()) {
                     mappedFile.setFirstCreateInQueue(true);
                 }
+                // 添加到mappedFiles中
                 this.mappedFiles.add(mappedFile);
             }
 
+            // 返回新创建的文件
             return mappedFile;
         }
 
+        // 如果已经有文件，且没有写满，则返回当前最后一个文件
         return mappedFileLast;
     }
 
+    // 根据cq全局字节偏移量查询Cq文件组下的最后一个cq文件
     public MappedFile getLastMappedFile(final long startOffset) {
         return getLastMappedFile(startOffset, true);
     }
 
     // 获取存储目录下某一个类文件的最后一个文件
-    // 当前是CommitLog下的最后一个CommitLog文件
+    // CommitLog下的最后一个CommitLog文件
+    // ConsumeQueue下的最后一个cq文件
     public MappedFile getLastMappedFile() {
         MappedFile mappedFileLast = null;
 
@@ -358,6 +370,13 @@ public class MappedFileQueue {
         }
     }
 
+    /**
+     * @param expiredTime 文件保留时间，72小时，单位毫秒
+     * @param deleteFilesInterval  删除下一个文件的间隔时间 默认100ms
+     * @param intervalForcibly 120s
+     * @param cleanImmediately 是否立即删除文件
+     * @return 返回本次删除成功的文件数量
+     */
     public int deleteExpiredFileByTime(final long expiredTime,
         final int deleteFilesInterval,
         final long intervalForcibly,
@@ -367,22 +386,33 @@ public class MappedFileQueue {
         if (null == mfs)
             return 0;
 
+        // 最后一个文件是写入文件，不用考虑删除
         int mfsLength = mfs.length - 1;
         int deleteCount = 0;
+
+        // 待删除列表
         List<MappedFile> files = new ArrayList<MappedFile>();
         if (null != mfs) {
+            // 循环遍历到倒数第二个文件。
             for (int i = 0; i < mfsLength; i++) {
                 MappedFile mappedFile = (MappedFile) mfs[i];
+                // 存活最大时间计算：文件的最后一次更新时间 + 72小时毫秒
                 long liveMaxTimestamp = mappedFile.getLastModifiedTimestamp() + expiredTime;
+                // 如果当前时间大于 文件存活时间 或者需要立即清除文件
                 if (System.currentTimeMillis() >= liveMaxTimestamp || cleanImmediately) {
                     if (mappedFile.destroy(intervalForcibly)) {
+                        // 销毁mappedFile，添加到待删除列表
                         files.add(mappedFile);
                         deleteCount++;
 
+                        // 每次最大删除的文件，20个
                         if (files.size() >= DELETE_FILES_BATCH_MAX) {
                             break;
                         }
 
+                        // 删除下一个文件的间隔时间
+                        // 如果有删除文件的间隔时间，同时不是循环中最后一个文件，需要睡眠间隔时间
+                        // 即删除最后一个文件时，就不需要休眠了。
                         if (deleteFilesInterval > 0 && (i + 1) < mfsLength) {
                             try {
                                 Thread.sleep(deleteFilesInterval);

@@ -118,6 +118,7 @@ public class UtilAll {
         return timeMillisToHumanString(System.currentTimeMillis());
     }
 
+    // 将时间戳转换成格式：20250719182213609
     public static String timeMillisToHumanString(final long t) {
         Calendar cal = Calendar.getInstance();
         cal.setTimeInMillis(t);
@@ -199,6 +200,8 @@ public class UtilAll {
             cal.get(Calendar.SECOND));
     }
 
+    // 获取指定路径下所有文件的占用大小
+    // todo ？？ 这样就可以获取路径占用的磁盘空间了？
     public static double getDiskPartitionSpaceUsedPercent(final String path) {
         if (null == path || path.isEmpty())
             return -1;
@@ -209,9 +212,11 @@ public class UtilAll {
             if (!file.exists())
                 return -1;
 
+            // 获取文件所在磁盘分区的总容量
             long totalSpace = file.getTotalSpace();
 
             if (totalSpace > 0) {
+                // 获取文件所在磁盘分区的剩余容量
                 long freeSpace = file.getFreeSpace();
                 long usedSpace = totalSpace - freeSpace;
 

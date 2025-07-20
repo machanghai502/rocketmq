@@ -50,9 +50,12 @@ public class ConsumeQueue {
     // consumequeue目录路径：RocketMQ_HOME/store/consumequeue/
     private final String storePath;
 
-    // 300000 * 20
+    // 一个ConsumeQueue文件的映射大小：300000 * 20
     private final int mappedFileSize;
+
+    // 当前cq文件组中？？
     private long maxPhysicOffset = -1;
+    //
     private volatile long minLogicOffset = 0;
     private ConsumeQueueExt consumeQueueExt = null;
 
@@ -423,6 +426,7 @@ public class ConsumeQueue {
                 this.defaultMessageStore.getStoreCheckpoint().setLogicsMsgTimestamp(request.getStoreTimestamp());
                 return;
             } else {
+                // 通过重试来防止当前文件写不进去，都是20的倍数，可能写不进去？
                 // XXX: warn and notify me
                 log.warn("[BUG]put commit log position info to " + topic + ":" + queueId + " " + request.getCommitLogOffset()
                     + " failed, retry " + i + " times");
@@ -442,10 +446,10 @@ public class ConsumeQueue {
 
     /**
      *
-     * @param offset CommitLogOffset
-     * @param size 消息大小
+     * @param offset CommitLogOffset 全局物理量
+     * @param size CommitLog一条消息长度
      * @param tagsCode tags hash码
-     * @param cqOffset ？？
+     * @param cqOffset 该条消息在topic/queue下的ConsumeQueue文件组下的偏移量，从0、1、2  eg...
      * @return
      */
     private boolean putMessagePositionInfo(final long offset, final int size, final long tagsCode,
@@ -463,12 +467,15 @@ public class ConsumeQueue {
         this.byteBufferIndex.putInt(size);
         this.byteBufferIndex.putLong(tagsCode);
 
-        //
+        // ConsumeQueue 一条消息的逻辑字节起始偏移量 比如，2 * 20= 40
+        // 0 1 2 3 这种才是逻辑偏移吧？ 当前这个应该是实际的字节物理偏移量
         final long expectLogicOffset = cqOffset * CQ_STORE_UNIT_SIZE;
 
+        // 获取最后一个文件，如果是第一个消息或者最后一个文件写满了，则创建新的cq文件并返回，否则返回最后一个cq文件。
         MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile(expectLogicOffset);
         if (mappedFile != null) {
 
+            // ？？ 什么情况下
             if (mappedFile.isFirstCreateInQueue() && cqOffset != 0 && mappedFile.getWrotePosition() == 0) {
                 this.minLogicOffset = expectLogicOffset;
                 this.mappedFileQueue.setFlushedWhere(expectLogicOffset);
@@ -478,6 +485,7 @@ public class ConsumeQueue {
                     + mappedFile.getWrotePosition());
             }
 
+            // 什么情况下？？
             if (cqOffset != 0) {
                 long currentLogicOffset = mappedFile.getWrotePosition() + mappedFile.getFileFromOffset();
 
@@ -498,7 +506,10 @@ public class ConsumeQueue {
                     );
                 }
             }
+
+           // ？？
             this.maxPhysicOffset = offset + size;
+
             return mappedFile.appendMessage(this.byteBufferIndex.array());
         }
         return false;

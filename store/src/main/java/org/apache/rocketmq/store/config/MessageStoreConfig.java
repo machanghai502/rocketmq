@@ -71,21 +71,29 @@ public class MessageStoreConfig {
     @ImportantField
     private boolean flushCommitLogTimed = false;
     // ConsumeQueue flush interval
+    // ConsumeQueue 异步刷盘 时间间隔 1000ms
     private int flushIntervalConsumeQueue = 1000;
     // Resource reclaim interval
+    //
     private int cleanResourceInterval = 10000;
     // CommitLog removal interval
+    // 删除CommitLog物理文件的间隔时间，在一次清除过程中，可能需要被删除的文件不止一个，该值指定两次删除文件的间隔时间
     private int deleteCommitLogFilesInterval = 100;
     // ConsumeQueue removal interval
+    // 删除cq物理文件的间隔时间，在一次清除过程中，可能需要被删除的文件不止一个，该值指定两次删除文件的间隔时间
     private int deleteConsumeQueueFilesInterval = 100;
+    ///
     private int destroyMapedFileIntervalForcibly = 1000 * 120;
     private int redeleteHangedFileInterval = 1000 * 120;
     // When to delete,default is at 4 am
+    // 删除过期时间的时间点
     @ImportantField
     private String deleteWhen = "04";
+    // 默认75，设置10-95之间，其他值也会修正成该时间
     private int diskMaxUsedSpaceRatio = 75;
     // The number of hours to keep a log file before deleting it (in hours)
     @ImportantField
+    // 文件保留时间，如果超过了该时间，则认为是过期文件，可以被删除，默认72个小时
     private int fileReservedTime = 72;
     // Flow control for ConsumeQueue
     private int putMsgIndexHightWater = 600000;
@@ -123,7 +131,9 @@ public class MessageStoreConfig {
     @ImportantField
     // 消息index文件开启。默认为true
     private boolean messageIndexEnable = true;
+    // 一个index索引文件最大Hash Slot数量，默认500w个
     private int maxHashSlotNum = 5000000;
+    // 一个index索引文件最大的Index条目数量，默认2000w个
     private int maxIndexNum = 5000000 * 4;
     private int maxMsgsNumBatch = 64;
     @ImportantField
@@ -139,6 +149,7 @@ public class MessageStoreConfig {
     private BrokerRole brokerRole = BrokerRole.ASYNC_MASTER;
     @ImportantField
     private FlushDiskType flushDiskType = FlushDiskType.ASYNC_FLUSH;
+    // 同步刷盘超时时间
     private int syncFlushTimeout = 1000 * 5;
     private String messageDelayLevel = "1s 5s 10s 30s 1m 2m 3m 4m 5m 6m 7m 8m 9m 10m 20m 30m 1h 2h";
     private long flushDelayOffsetInterval = 1000 * 10;

@@ -28,6 +28,8 @@ public class StorePathConfigHelper {
         return rootDir + File.separator + "consumequeue_ext";
     }
 
+    // Index file store path
+    // {ROCKET_HOME}/store/index/
     public static String getStorePathIndex(final String rootDir) {
         return rootDir + File.separator + "index";
     }

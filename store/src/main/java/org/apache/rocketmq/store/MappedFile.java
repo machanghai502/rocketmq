@@ -116,6 +116,7 @@ public class MappedFile extends ReferenceResource {
         }
     }
 
+    //todo ？？
     public static void clean(final ByteBuffer buffer) {
         if (buffer == null || !buffer.isDirect() || buffer.capacity() == 0)
             return;
@@ -191,6 +192,8 @@ public class MappedFile extends ReferenceResource {
 
         // 当前CommitLog的再整个CommitLog文件组中第一条消息的物理偏移量
         // 文件名字就是，所以通过文件名字就可以获取
+        // ConsumeQueue文件呢？
+        // Index文件呢？
         this.fileFromOffset = Long.parseLong(this.file.getName());
         boolean ok = false;
 
@@ -220,6 +223,7 @@ public class MappedFile extends ReferenceResource {
 
     // 文件的修改时间
     public long getLastModifiedTimestamp() {
+        // todo 文件的最后一次更新时间
         return this.file.lastModified();
     }
 
@@ -294,7 +298,7 @@ public class MappedFile extends ReferenceResource {
         return new AppendMessageResult(AppendMessageStatus.UNKNOWN_ERROR);
     }
 
-    // 当前CommitLog的再整个CommitLog文件组中第一条消息的物理偏移量
+    // 当前CommitLog的在整个CommitLog文件组中第一条消息的物理偏移量
     // 文件名字就是，所以通过文件名字就可以获取
     public long getFileFromOffset() {
         return this.fileFromOffset;
@@ -305,11 +309,14 @@ public class MappedFile extends ReferenceResource {
 
         if ((currentPos + data.length) <= this.fileSize) {
             try {
+                // 那对MappedByteBuffer有什么影响，或者两者的区别
+                // 指定从什么位置开始写入？
                 this.fileChannel.position(currentPos);
                 this.fileChannel.write(ByteBuffer.wrap(data));
             } catch (Throwable e) {
                 log.error("Error occurred when append message to mappedFile.", e);
             }
+            // 增加写入指针位置
             this.wrotePosition.addAndGet(data.length);
             return true;
         }
@@ -521,6 +528,7 @@ public class MappedFile extends ReferenceResource {
         return null;
     }
 
+    // 只有shutdown的后才能进行cleanup
     @Override
     public boolean cleanup(final long currentRef) {
         if (this.isAvailable()) {
@@ -529,29 +537,36 @@ public class MappedFile extends ReferenceResource {
             return false;
         }
 
+        // 如果清除完毕，无需重复清除
         if (this.isCleanupOver()) {
             log.error("this file[REF:" + currentRef + "] " + this.fileName
                 + " have cleanup, do not do it again.");
             return true;
         }
 
+        // todo ？？
         clean(this.mappedByteBuffer);
+
+        // 维护统计数据
         TOTAL_MAPPED_VIRTUAL_MEMORY.addAndGet(this.fileSize * (-1));
         TOTAL_MAPPED_FILES.decrementAndGet();
         log.info("unmap file[REF:" + currentRef + "] " + this.fileName + " OK");
         return true;
     }
 
-    // MappedFile 销毁
+    // MappedFile 销毁 关联的fileChannel file都要销毁
+    // todo
     public boolean destroy(final long intervalForcibly) {
         this.shutdown(intervalForcibly);
 
         if (this.isCleanupOver()) {
             try {
+                // 关闭fileChannel，对应的mmap内存会释放么？
                 this.fileChannel.close();
                 log.info("close file channel " + this.fileName + " OK");
 
                 long beginTime = System.currentTimeMillis();
+                // 删除文件
                 boolean result = this.file.delete();
                 log.info("delete file[REF:" + this.getRefCount() + "] " + this.fileName
                     + (result ? " OK, " : " Failed, ") + "W:" + this.getWrotePosition() + " M:"

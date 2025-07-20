@@ -1,5 +1,6 @@
 package org.apache.rocketmq.test;
 
+import org.apache.rocketmq.common.UtilAll;
 import org.apache.rocketmq.store.ConsumeQueue;
 import org.apache.rocketmq.test.util.MQWait;
 import org.assertj.core.api.Assertions;
@@ -59,10 +60,15 @@ public class ByteBufferTest {
 //        System.out.println("capacity:" + sliceByteBuffer.capacity());
 
 
-        int mappedFileSizeConsumeQueue = 300000 * ConsumeQueue.CQ_STORE_UNIT_SIZE;
-        int factor = (int) Math.ceil(mappedFileSizeConsumeQueue / (ConsumeQueue.CQ_STORE_UNIT_SIZE * 1.0));
-        int aa =  (int) (factor * ConsumeQueue.CQ_STORE_UNIT_SIZE);
-        System.out.println(aa);
+//        int mappedFileSizeConsumeQueue = 300000 * ConsumeQueue.CQ_STORE_UNIT_SIZE;
+//        int factor = (int) Math.ceil(mappedFileSizeConsumeQueue / (ConsumeQueue.CQ_STORE_UNIT_SIZE * 1.0));
+//        int aa =  (int) (factor * ConsumeQueue.CQ_STORE_UNIT_SIZE);
+//        System.out.println(aa);
+
+        System.out.println("==============================================");
+        String s = UtilAll.timeMillisToHumanString(System.currentTimeMillis());
+        System.out.println(s);
+
 
     }
 }

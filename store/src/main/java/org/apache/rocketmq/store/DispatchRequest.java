@@ -27,15 +27,17 @@ public class DispatchRequest {
     // commitLog PHYSICAL OFFSET
     // commitLog 全局物理偏移量
     private final long commitLogOffset;
-
+    // 对应CommitLog的一条消息的字节数，消息长度
     private int msgSize;
     private final long tagsCode;
     private final long storeTimestamp;
 
     //
     private final long consumeQueueOffset;
+    // mes keys 多个 以什么分割？
     private final String keys;
     private final boolean success;
+    // ？
     private final String uniqKey;
 
     private final int sysFlag;

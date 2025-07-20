@@ -33,6 +33,8 @@ import org.apache.rocketmq.store.DefaultMessageStore;
 import org.apache.rocketmq.store.DispatchRequest;
 import org.apache.rocketmq.store.config.StorePathConfigHelper;
 
+// 构建Index文件服务类
+// 管理整个{ROCKET_HOME}/store/index/目录下的indexFile
 public class IndexService {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
     /**
@@ -40,10 +42,16 @@ public class IndexService {
      */
     private static final int MAX_TRY_IDX_CREATE = 3;
     private final DefaultMessageStore defaultMessageStore;
+
+    // 一个Index文件，hash Slot数量，默认500w个
     private final int hashSlotNum;
+    // 一个index索引文件最大的Index条目数量，默认2000w个
     private final int indexNum;
+    // {ROCKET_HOME}/store/index/
     private final String storePath;
+    // 维护所有IndexFile文件列表
     private final ArrayList<IndexFile> indexFileList = new ArrayList<IndexFile>();
+    // 读写锁
     private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
 
     public IndexService(final DefaultMessageStore store) {
@@ -198,7 +206,9 @@ public class IndexService {
         return topic + "#" + key;
     }
 
+    // 通过CommitLog转发过来的DispatchRequest构建索引
     public void buildIndex(DispatchRequest req) {
+        // 获取或者创建IndexFile
         IndexFile indexFile = retryGetAndCreateIndexFile();
         if (indexFile != null) {
             long endPhyOffset = indexFile.getEndPhyOffset();
@@ -219,6 +229,8 @@ public class IndexService {
                     return;
             }
 
+            // 唯一key 从哪里来的？，添加到index文件
+            // 通过唯一key建立消息hash索引
             if (req.getUniqKey() != null) {
                 indexFile = putKey(indexFile, msg, buildKey(topic, req.getUniqKey()));
                 if (indexFile == null) {
@@ -227,7 +239,10 @@ public class IndexService {
                 }
             }
 
+            // 多个keys，添加到index文件
+            // 支持通过多个Key，为同一个CommitLog消息建立多个索引index条目
             if (keys != null && keys.length() > 0) {
+                // 空格分割
                 String[] keyset = keys.split(MessageConst.KEY_SEPARATOR);
                 for (int i = 0; i < keyset.length; i++) {
                     String key = keyset[i];
@@ -245,6 +260,8 @@ public class IndexService {
         }
     }
 
+    // 为key构建消息索引
+    // key格式：{topic}"#"{key}
     private IndexFile putKey(IndexFile indexFile, DispatchRequest msg, String idxKey) {
         for (boolean ok = indexFile.putKey(idxKey, msg.getCommitLogOffset(), msg.getStoreTimestamp()); !ok; ) {
             log.warn("Index file [" + indexFile.getFileName() + "] is full, trying to create another one");
@@ -289,12 +306,14 @@ public class IndexService {
         return indexFile;
     }
 
+    // 获取最后一个IndexFile或者创建一个新的IndexFile
     public IndexFile getAndCreateLastIndexFile() {
         IndexFile indexFile = null;
         IndexFile prevIndexFile = null;
         long lastUpdateEndPhyOffset = 0;
         long lastUpdateIndexTimestamp = 0;
 
+        // 获取最后一个IndexFile，如果有且没有写满，则返回最后一个IndexFile。
         {
             this.readWriteLock.readLock().lock();
             if (!this.indexFileList.isEmpty()) {
@@ -302,6 +321,7 @@ public class IndexService {
                 if (!tmp.isWriteFull()) {
                     indexFile = tmp;
                 } else {
+                    // 最后一个文件写满了的情况
                     lastUpdateEndPhyOffset = tmp.getEndPhyOffset();
                     lastUpdateIndexTimestamp = tmp.getEndTimestamp();
                     prevIndexFile = tmp;
@@ -311,8 +331,11 @@ public class IndexService {
             this.readWriteLock.readLock().unlock();
         }
 
+        // 没有任何IndexFile或者最后一个IndexFile写满了。则创建新的IndexFile
         if (indexFile == null) {
             try {
+                // 将时间戳转换成格式：20250719182213609
+                // {Rocket_mq}/20250719182213609
                 String fileName =
                     this.storePath + File.separator
                         + UtilAll.timeMillisToHumanString(System.currentTimeMillis());
@@ -327,6 +350,7 @@ public class IndexService {
                 this.readWriteLock.writeLock().unlock();
             }
 
+            // 创建了新的IndexFile后将前一个index文件开启一个线程进行flush磁盘中
             if (indexFile != null) {
                 final IndexFile flushThisFile = prevIndexFile;
                 Thread flushThread = new Thread(new Runnable() {

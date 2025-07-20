@@ -22,16 +22,17 @@ import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 
-// 服务线程封装类
+// 服务线程封装基类
 public abstract class ServiceThread implements Runnable {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.COMMON_LOGGER_NAME);
 
     private static final long JOIN_TIME = 90 * 1000;
 
     private Thread thread;
-    //
+
+    // 线程阻塞同步所
     protected final CountDownLatch2 waitPoint = new CountDownLatch2(1);
-    //
+    // 记录当前线程是否为唤醒状态，true代表唤醒状态
     protected volatile AtomicBoolean hasNotified = new AtomicBoolean(false);
     protected volatile boolean stopped = false;
     protected boolean isDaemon = false;
@@ -129,7 +130,11 @@ public abstract class ServiceThread implements Runnable {
         }
     }
 
+    // 最多等待10ms，如果调用该方法时已经唤醒了，则直接切换读写容器同时设置唤醒状态为未唤醒。说明处理完本次循环了，等待下一次的唤醒，
+    // 然后方法返回返回后开始执行本次刷盘操作。
+    // 如果没有唤醒，则await等待被唤醒。
     protected void waitForRunning(long interval) {
+        // 首先判断是否有人进行了唤醒操作，如果有则直接返回，相当于立马结束等待
         if (hasNotified.compareAndSet(true, false)) {
             this.onWaitEnd();
             return;
