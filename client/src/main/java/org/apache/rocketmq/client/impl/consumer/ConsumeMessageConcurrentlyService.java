@@ -48,15 +48,23 @@ import org.apache.rocketmq.common.protocol.body.ConsumeMessageDirectlyResult;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.remoting.common.RemotingHelper;
 
+// 并发消息消费服务（线程池）
 public class ConsumeMessageConcurrentlyService implements ConsumeMessageService {
     private static final InternalLogger log = ClientLogger.getLog();
     private final DefaultMQPushConsumerImpl defaultMQPushConsumerImpl;
     private final DefaultMQPushConsumer defaultMQPushConsumer;
+
+    // 并发消息消费监听器
     private final MessageListenerConcurrently messageListener;
     private final BlockingQueue<Runnable> consumeRequestQueue;
+    // 消费线程池
     private final ThreadPoolExecutor consumeExecutor;
+    // 消费者所属组
     private final String consumerGroup;
 
+    //  定时线程任务(单线程)实例化
+    // 1
+    // 2
     private final ScheduledExecutorService scheduledExecutorService;
     private final ScheduledExecutorService cleanExpireMsgExecutors;
 
@@ -67,8 +75,12 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
 
         this.defaultMQPushConsumer = this.defaultMQPushConsumerImpl.getDefaultMQPushConsumer();
         this.consumerGroup = this.defaultMQPushConsumer.getConsumerGroup();
+        // 消费线程池中使用的消费队列
         this.consumeRequestQueue = new LinkedBlockingQueue<Runnable>();
 
+        // 初始化消费现成
+        // 默认 20  20
+        // 线程名称前缀：ConsumeMessageThread_，如果多个消费者的情况下怎么区分？？
         this.consumeExecutor = new ThreadPoolExecutor(
             this.defaultMQPushConsumer.getConsumeThreadMin(),
             this.defaultMQPushConsumer.getConsumeThreadMax(),
@@ -77,6 +89,9 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
             this.consumeRequestQueue,
             new ThreadFactoryImpl("ConsumeMessageThread_"));
 
+        // 定时线程任务(单线程)实例化
+        // 1.
+        // 2.
         this.scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("ConsumeMessageScheduledThread_"));
         this.cleanExpireMsgExecutors = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("CleanExpireMsgScheduledThread_"));
     }

@@ -164,6 +164,7 @@ import org.apache.rocketmq.remoting.protocol.LanguageCode;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 import org.apache.rocketmq.remoting.protocol.RemotingSerializable;
 
+// MQClientAPI 通过RemotingClient实例🤔Broker发起请求
 public class MQClientAPIImpl {
 
     private final static InternalLogger log = ClientLogger.getLog();
@@ -174,6 +175,7 @@ public class MQClientAPIImpl {
         System.setProperty(RemotingCommand.REMOTING_VERSION_KEY, Integer.toString(MQVersion.CURRENT_VERSION));
     }
 
+    // RPC远程调用客户端
     private final RemotingClient remotingClient;
     private final TopAddressing topAddressing;
     private final ClientRemotingProcessor clientRemotingProcessor;
@@ -185,6 +187,7 @@ public class MQClientAPIImpl {
         RPCHook rpcHook, final ClientConfig clientConfig) {
         this.clientConfig = clientConfig;
         topAddressing = new TopAddressing(MixAll.getWSAddr(), clientConfig.getUnitName());
+        // Netty远程请求客户端
         this.remotingClient = new NettyRemotingClient(nettyClientConfig, null);
         this.clientRemotingProcessor = clientRemotingProcessor;
 

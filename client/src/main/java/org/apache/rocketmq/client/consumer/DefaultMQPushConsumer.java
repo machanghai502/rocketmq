@@ -92,7 +92,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      *
      * This field defaults to clustering.
      */
-    // 消费者组内所有消费者的消费模式，分为集群模式、广播模式，默认为集群模式
+    // 同一个消费者组内所有消费者的消费模式，分为集群模式、广播模式，默认为集群模式
     private MessageModel messageModel = MessageModel.CLUSTERING;
 
     /**
@@ -157,6 +157,8 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * Subscription relationship
      */
     // 订阅信息
+    // key topic
+    //
     private Map<String /* topic */, String /* sub expression */> subscription = new HashMap<String, String>();
 
     /**
@@ -774,7 +776,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      *
      * @param topic topic to subscribe.
      * @param subExpression subscription expression.it only support or operation such as "tag1 || tag2 || tag3" <br>
-     * if null or * expression,meaning subscribe all
+     * if null or * expression,meaning subscribe all  todo 表达式的作用
      * @throws MQClientException if there is any client error.
      */
     @Override

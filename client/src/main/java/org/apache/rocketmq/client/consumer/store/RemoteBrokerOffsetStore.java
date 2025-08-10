@@ -39,9 +39,11 @@ import org.apache.rocketmq.remoting.exception.RemotingException;
 /**
  * Remote storage implementation
  */
+//  OffsetStore 远程存储实现 存储在Broker上。
 public class RemoteBrokerOffsetStore implements OffsetStore {
     private final static InternalLogger log = ClientLogger.getLog();
     private final MQClientInstance mQClientFactory;
+    // 消费者组名称
     private final String groupName;
     private ConcurrentMap<MessageQueue, AtomicLong> offsetTable =
         new ConcurrentHashMap<MessageQueue, AtomicLong>();

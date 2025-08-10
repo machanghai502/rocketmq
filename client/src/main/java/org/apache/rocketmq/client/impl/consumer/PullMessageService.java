@@ -27,8 +27,12 @@ import org.apache.rocketmq.common.ServiceThread;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.common.utils.ThreadUtils;
 
+// 消息拉取线程服务类
 public class PullMessageService extends ServiceThread {
     private final InternalLogger log = ClientLogger.getLog();
+    // 拉取请求（任务）阻塞队列
+    // pullRequestQueue存储的是拉取请求
+    // 数据来源是？？PullRequest什么时候放入的呢？
     private final LinkedBlockingQueue<PullRequest> pullRequestQueue = new LinkedBlockingQueue<PullRequest>();
     private final MQClientInstance mQClientFactory;
     private final ScheduledExecutorService scheduledExecutorService = Executors
@@ -76,6 +80,7 @@ public class PullMessageService extends ServiceThread {
         return scheduledExecutorService;
     }
 
+    // 拉取消息
     private void pullMessage(final PullRequest pullRequest) {
         final MQConsumerInner consumer = this.mQClientFactory.selectConsumer(pullRequest.getConsumerGroup());
         if (consumer != null) {
@@ -90,9 +95,12 @@ public class PullMessageService extends ServiceThread {
     public void run() {
         log.info(this.getServiceName() + " service started");
 
+        // 是一种通用的设计技巧，Stopped声明为volatile，每执行一次业务逻辑，检测一下其运行状态，可以通过其他线程将Stopped设置为true，从而停止该线程
         while (!this.isStopped()) {
             try {
+                // 从【pullRequestQueue】中获取一个PullRequest消息拉取任务，如果pullRequestQueue为空，则线程将阻塞，直到有拉取任务被放入。
                 PullRequest pullRequest = this.pullRequestQueue.take();
+                // 进行拉取消息
                 this.pullMessage(pullRequest);
             } catch (InterruptedException ignored) {
             } catch (Exception e) {

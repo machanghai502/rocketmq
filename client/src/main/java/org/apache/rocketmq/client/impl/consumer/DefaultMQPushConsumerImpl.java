@@ -97,18 +97,25 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     private static final long CONSUMER_TIMEOUT_MILLIS_WHEN_SUSPEND = 1000 * 30;
     private final InternalLogger log = ClientLogger.getLog();
     private final DefaultMQPushConsumer defaultMQPushConsumer;
+    // 重平衡实现类
+    // 每个消费者实例对应一个RebalanceImpl
     private final RebalanceImpl rebalanceImpl = new RebalancePushImpl(this);
     private final ArrayList<FilterMessageHook> filterMessageHookList = new ArrayList<FilterMessageHook>();
     private final long consumerStartTimestamp = System.currentTimeMillis();
     private final ArrayList<ConsumeMessageHook> consumeMessageHookList = new ArrayList<ConsumeMessageHook>();
     private final RPCHook rpcHook;
     private volatile ServiceState serviceState = ServiceState.CREATE_JUST;
+    // MQClientInstance实例
     private MQClientInstance mQClientFactory;
     private PullAPIWrapper pullAPIWrapper;
     private volatile boolean pause = false;
+    // 是否是顺序消费
     private boolean consumeOrderly = false;
+    // 消息监听器
     private MessageListener messageListenerInner;
     private OffsetStore offsetStore;
+    // 消费消息服务；消费消息线程池
+    // 一个消费者对应相关消费服务
     private ConsumeMessageService consumeMessageService;
     private long queueFlowControlTimes = 0;
     private long queueMaxSpanFlowControlTimes = 0;
@@ -573,56 +580,72 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                     this.defaultMQPushConsumer.getMessageModel(), this.defaultMQPushConsumer.isUnitMode());
                 this.serviceState = ServiceState.START_FAILED;
 
-                // 检查消费者配置
+                //1. 检查消费者配置
                 this.checkConfig();
 
+                //2. 构建主题订阅信息SubscriptionData并加入RebalanceImpl的订阅关系中
                 this.copySubscription();
 
+                // 消费模式是集群模式则设置rocketmq.client.name的名为为PID，默认是DEFAULT
                 if (this.defaultMQPushConsumer.getMessageModel() == MessageModel.CLUSTERING) {
                     this.defaultMQPushConsumer.changeInstanceNameToPID();
                 }
 
+                // 3. 获取或者创建MQClientInstance
                 this.mQClientFactory = MQClientManager.getInstance().getOrCreateMQClientInstance(this.defaultMQPushConsumer, this.rpcHook);
 
+                // 4. 初始化（设置）消息重新负载实现类， 设置所属消费者组，消费模式，重新分配消息队列策略、消费者实例对象
                 this.rebalanceImpl.setConsumerGroup(this.defaultMQPushConsumer.getConsumerGroup());
                 this.rebalanceImpl.setMessageModel(this.defaultMQPushConsumer.getMessageModel());
                 this.rebalanceImpl.setAllocateMessageQueueStrategy(this.defaultMQPushConsumer.getAllocateMessageQueueStrategy());
                 this.rebalanceImpl.setmQClientFactory(this.mQClientFactory);
 
+                //
                 this.pullAPIWrapper = new PullAPIWrapper(
                     mQClientFactory,
                     this.defaultMQPushConsumer.getConsumerGroup(), isUnitMode());
                 this.pullAPIWrapper.registerFilterMessageHook(filterMessageHookList);
 
+                // 初始化消息进度
                 if (this.defaultMQPushConsumer.getOffsetStore() != null) {
                     this.offsetStore = this.defaultMQPushConsumer.getOffsetStore();
                 } else {
                     switch (this.defaultMQPushConsumer.getMessageModel()) {
+                        // 广播模式：消息消费进度存储在消费端。
                         case BROADCASTING:
                             this.offsetStore = new LocalFileOffsetStore(this.mQClientFactory, this.defaultMQPushConsumer.getConsumerGroup());
                             break;
+                            // 集群模式： 消息进度存储在Broker上
                         case CLUSTERING:
                             this.offsetStore = new RemoteBrokerOffsetStore(this.mQClientFactory, this.defaultMQPushConsumer.getConsumerGroup());
                             break;
                         default:
                             break;
                     }
+                    // 设置OffsetStore
                     this.defaultMQPushConsumer.setOffsetStore(this.offsetStore);
                 }
+
+                // todo
                 this.offsetStore.load();
 
+                // 顺序消费和并发消息两者有什么区别？？
+                //  顺序消费
                 if (this.getMessageListenerInner() instanceof MessageListenerOrderly) {
                     this.consumeOrderly = true;
                     this.consumeMessageService =
                         new ConsumeMessageOrderlyService(this, (MessageListenerOrderly) this.getMessageListenerInner());
                 } else if (this.getMessageListenerInner() instanceof MessageListenerConcurrently) {
+                    // 并发消费
                     this.consumeOrderly = false;
                     this.consumeMessageService =
                         new ConsumeMessageConcurrentlyService(this, (MessageListenerConcurrently) this.getMessageListenerInner());
                 }
 
+                // 启动消息消费服务
                 this.consumeMessageService.start();
 
+                // 向MQClientInstance注册消费者
                 boolean registerOK = mQClientFactory.registerConsumer(this.defaultMQPushConsumer.getConsumerGroup(), this);
                 if (!registerOK) {
                     this.serviceState = ServiceState.CREATE_JUST;
@@ -632,6 +655,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                         null);
                 }
 
+                // 启动 MQClientInstance
                 mQClientFactory.start();
                 log.info("the consumer [{}] start OK.", this.defaultMQPushConsumer.getConsumerGroup());
                 this.serviceState = ServiceState.RUNNING;
@@ -823,6 +847,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         }
     }
 
+    // 构建主题订阅信息SubscriptionData并加入RebalanceImpl的订阅关系中
     private void copySubscription() throws MQClientException {
         try {
             Map<String, String> sub = this.defaultMQPushConsumer.getSubscription();
@@ -840,10 +865,14 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 this.messageListenerInner = this.defaultMQPushConsumer.getMessageListener();
             }
 
+            // 同一个消费者组内所有消费者的消费模式，分为集群模式、广播模式，默认为集群模式
             switch (this.defaultMQPushConsumer.getMessageModel()) {
+                // 广播模式
                 case BROADCASTING:
                     break;
+                // 集群模式
                 case CLUSTERING:
+                    // 获取重试topic名称，主题名称；%RETRY% + consumerGroup
                     final String retryTopic = MixAll.getRetryTopic(this.defaultMQPushConsumer.getConsumerGroup());
                     SubscriptionData subscriptionData = FilterAPI.buildSubscriptionData(this.defaultMQPushConsumer.getConsumerGroup(),
                         retryTopic, SubscriptionData.SUB_ALL);

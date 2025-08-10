@@ -30,7 +30,7 @@ public abstract class ServiceThread implements Runnable {
 
     private Thread thread;
 
-    // 线程阻塞同步所
+    // 线程阻塞同步锁
     protected final CountDownLatch2 waitPoint = new CountDownLatch2(1);
     // 记录当前线程是否为唤醒状态，true代表唤醒状态
     protected volatile AtomicBoolean hasNotified = new AtomicBoolean(false);

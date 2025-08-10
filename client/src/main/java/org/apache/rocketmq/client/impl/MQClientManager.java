@@ -25,10 +25,17 @@ import org.apache.rocketmq.client.log.ClientLogger;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.remoting.RPCHook;
 
+
+// 管理所有的MQClientInstance
+// 获取或者创建MQClientInstance
+// 维护维护所有的MQClientInstance
 public class MQClientManager {
     private final static InternalLogger log = ClientLogger.getLog();
     private static MQClientManager instance = new MQClientManager();
     private AtomicInteger factoryIndexGenerator = new AtomicInteger();
+
+    // 维护所有的MQClientInstance实例
+    // key为clientId，value为MQClientInstance实例
     private ConcurrentMap<String/* clientId */, MQClientInstance> factoryTable =
         new ConcurrentHashMap<String, MQClientInstance>();
 
@@ -44,7 +51,11 @@ public class MQClientManager {
         return getOrCreateMQClientInstance(clientConfig, null);
     }
 
+    // 获取或者创建MQClientInstance
+    // 如果clientId对应的MQClientInstance不存在则创建
     public MQClientInstance getOrCreateMQClientInstance(final ClientConfig clientConfig, RPCHook rpcHook) {
+
+        // 构建clientId：ClientIP@{rocketmq.client.name:DEFAULT}@{unitName}
         String clientId = clientConfig.buildMQClientId();
         MQClientInstance instance = this.factoryTable.get(clientId);
         if (null == instance) {

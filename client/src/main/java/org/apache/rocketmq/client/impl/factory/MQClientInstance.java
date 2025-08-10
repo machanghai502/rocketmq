@@ -85,17 +85,22 @@ import org.apache.rocketmq.remoting.exception.RemotingException;
 import org.apache.rocketmq.remoting.netty.NettyClientConfig;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 
+// 消费者客户端实例，代表一个消费者
 public class MQClientInstance {
     private final static long LOCK_TIMEOUT_MILLIS = 3000;
     private final InternalLogger log = ClientLogger.getLog();
+    // ClientIdConfig
     private final ClientConfig clientConfig;
     private final int instanceIndex;
+    // ClientId
     private final String clientId;
     private final long bootTimestamp = System.currentTimeMillis();
     private final ConcurrentMap<String/* group */, MQProducerInner> producerTable = new ConcurrentHashMap<String, MQProducerInner>();
+    // 维护当前消费者？？ 会有多个消费者组？？默认不是一个消费者属于一个组，同时订阅多个topic，不是这个用法么？？？
     private final ConcurrentMap<String/* group */, MQConsumerInner> consumerTable = new ConcurrentHashMap<String, MQConsumerInner>();
     private final ConcurrentMap<String/* group */, MQAdminExtInner> adminExtTable = new ConcurrentHashMap<String, MQAdminExtInner>();
     private final NettyClientConfig nettyClientConfig;
+    //
     private final MQClientAPIImpl mQClientAPIImpl;
     private final MQAdminImpl mQAdminImpl;
 
@@ -116,7 +121,11 @@ public class MQClientInstance {
         }
     });
     private final ClientRemotingProcessor clientRemotingProcessor;
+
+    // 拉取消息服务
     private final PullMessageService pullMessageService;
+
+    //
     private final RebalanceService rebalanceService;
     private final DefaultMQProducer defaultMQProducer;
     private final ConsumerStatsManager consumerStatsManager;
@@ -136,6 +145,7 @@ public class MQClientInstance {
         this.nettyClientConfig.setClientCallbackExecutorThreads(clientConfig.getClientCallbackExecutorThreads());
         this.nettyClientConfig.setUseTLS(clientConfig.isUseTLS());
         this.clientRemotingProcessor = new ClientRemotingProcessor(this);
+        //
         this.mQClientAPIImpl = new MQClientAPIImpl(this.nettyClientConfig, this.clientRemotingProcessor, rpcHook, clientConfig);
 
         if (this.clientConfig.getNamesrvAddr() != null) {
@@ -232,6 +242,9 @@ public class MQClientInstance {
         return mqList;
     }
 
+    // 启动 MQClientInstance
+    //  JVM中的所有消费者、生产者持有同一个 MQClientInstance，MQClientInstance只会启动一次？？
+    // 启动过程 todo？？
     public void start() throws MQClientException {
 
         synchronized (this) {
@@ -243,14 +256,19 @@ public class MQClientInstance {
                         this.mQClientAPIImpl.fetchNameServerAddr();
                     }
                     // Start request-response channel
+                    // 启动mQClientAPI
                     this.mQClientAPIImpl.start();
                     // Start various schedule tasks
+                    // 启动多个定时任务
                     this.startScheduledTask();
                     // Start pull service
+                    // 启动消息拉取服务线程类
                     this.pullMessageService.start();
+                    // 启动重平衡服务
                     // Start rebalance service
                     this.rebalanceService.start();
                     // Start push service
+                    // ？？
                     this.defaultMQProducer.getDefaultMQProducerImpl().start(false);
                     log.info("the client factory [{}] start OK", this.clientId);
                     this.serviceState = ServiceState.RUNNING;
@@ -894,6 +912,12 @@ public class MQClientInstance {
         }
     }
 
+    /**
+     * 向MQClientInstance注册消费者
+     * @param group 消费者组
+     * @param consumer DefaultMQPushConsumerImpl
+     * @return
+     */
     public boolean registerConsumer(final String group, final MQConsumerInner consumer) {
         if (null == group || null == consumer) {
             return false;

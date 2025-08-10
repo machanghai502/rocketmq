@@ -32,6 +32,7 @@ import org.apache.rocketmq.remoting.protocol.LanguageCode;
 /**
  * Client Common configuration
  */
+// MQ client 通用配置
 public class ClientConfig {
     public static final String SEND_MESSAGE_WITH_VIP_CHANNEL_PROPERTY = "com.rocketmq.sendMessageWithVIPChannel";
     private String namesrvAddr = NameServerAddressUtils.getNameServerAddresses();
@@ -62,6 +63,8 @@ public class ClientConfig {
 
     private LanguageCode language = LanguageCode.JAVA;
 
+    // 构建clientId
+    // ClientIP@{rocketmq.client.name:DEFAULT}@{unitName}
     public String buildMQClientId() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClientIP());
@@ -93,7 +96,7 @@ public class ClientConfig {
     }
 
     public void changeInstanceNameToPID() {
-        if (this.instanceName.equals("DEFAULT")) {
+        if ("DEFAULT".equals(this.instanceName)) {
             this.instanceName = String.valueOf(UtilAll.getPid());
         }
     }

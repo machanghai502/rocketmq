@@ -38,17 +38,27 @@ import org.apache.rocketmq.remoting.exception.RemotingException;
 /**
  * Local storage implementation
  */
+// 消息进度存储：本地存储实现
+// 存储在消费端，默认路径是：{user.home}/.rocketmq_offsets/{clientId}/{consumerGroup}/offsets.json
 public class LocalFileOffsetStore implements OffsetStore {
     public final static String LOCAL_OFFSET_STORE_DIR = System.getProperty(
         "rocketmq.client.localOffsetStoreDir",
         System.getProperty("user.home") + File.separator + ".rocketmq_offsets");
     private final static InternalLogger log = ClientLogger.getLog();
+    // 关联的消费者实例
     private final MQClientInstance mQClientFactory;
+    // 消费者组名称
     private final String groupName;
+    // 文件全路径： {user.home}/.rocketmq_offsets/{clientId}/{consumerGroup}/offsets.json
     private final String storePath;
     private ConcurrentMap<MessageQueue, AtomicLong> offsetTable =
         new ConcurrentHashMap<MessageQueue, AtomicLong>();
 
+    /**
+     *  消息进度存储：本地存储实例化
+     * @param mQClientFactory
+     * @param groupName 消费者组名称
+     */
     public LocalFileOffsetStore(MQClientInstance mQClientFactory, String groupName) {
         this.mQClientFactory = mQClientFactory;
         this.groupName = groupName;
