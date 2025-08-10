@@ -96,7 +96,7 @@ public class MQClientInstance {
     private final String clientId;
     private final long bootTimestamp = System.currentTimeMillis();
     private final ConcurrentMap<String/* group */, MQProducerInner> producerTable = new ConcurrentHashMap<String, MQProducerInner>();
-    // 维护当前消费者？？ 会有多个消费者组？？默认不是一个消费者属于一个组，同时订阅多个topic，不是这个用法么？？？
+    // 维护当前消费者？？ 会有多个消费者组？？默认不是一个消费者属于一个组，同时订阅多个topic，不是这个用法么？？？ todo
     private final ConcurrentMap<String/* group */, MQConsumerInner> consumerTable = new ConcurrentHashMap<String, MQConsumerInner>();
     private final ConcurrentMap<String/* group */, MQAdminExtInner> adminExtTable = new ConcurrentHashMap<String, MQAdminExtInner>();
     private final NettyClientConfig nettyClientConfig;
