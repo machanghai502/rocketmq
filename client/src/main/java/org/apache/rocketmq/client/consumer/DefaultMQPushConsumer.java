@@ -60,6 +60,7 @@ import org.apache.rocketmq.remoting.exception.RemotingException;
  * <strong>Thread Safety:</strong> After initialization, the instance can be regarded as thread-safe.
  * </p>
  */
+// 推模式 消费者默认实现
 public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsumer {
 
     private final InternalLogger log = ClientLogger.getLog();
@@ -76,6 +77,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      *
      * See <a href="http://rocketmq.apache.org/docs/core-concept/">here</a> for further discussion.
      */
+    // 消费者所属组
     private String consumerGroup;
 
     /**
@@ -90,7 +92,17 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      *
      * This field defaults to clustering.
      */
+    // 消费者组内所有消费者的消费模式，分为集群模式、广播模式，默认为集群模式
     private MessageModel messageModel = MessageModel.CLUSTERING;
+
+    /**
+     * 第一次消费时指定消费策略，即从什么位置开始消费。
+     * CONSUME_FROM_LAST_OFFSET：此处分为两种情况，如果磁盘消息未过期且未被删除，则从最小偏移量开始消费。如果磁盘已过期并被删除，则从最大偏移量开始消费。 ？？？
+     * CONSUME_FROM_FIRST_OFFSET：从队列当前最小偏移量开始消费。
+     * CONSUME_FROM_TIMESTAMP：从消费者指定时间戳开始消费。
+     *
+     * 注意：如果从消息进度服务OffsetStore读取到MessageQueue中的偏移量不小于0，则使用读取到的偏移量拉取消息，只有在读到的偏移量小于0时，上述策略才会生效
+     */
 
     /**
      * Consuming point on consumer booting.
@@ -136,30 +148,38 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
     /**
      * Queue allocation algorithm specifying how message queues are allocated to each consumer clients.
      */
+    // 集群模式下消息队列的负载策略
+    // 消息队列分配到消费者
+    // 负载均衡算法
     private AllocateMessageQueueStrategy allocateMessageQueueStrategy;
 
     /**
      * Subscription relationship
      */
+    // 订阅信息
     private Map<String /* topic */, String /* sub expression */> subscription = new HashMap<String, String>();
 
     /**
      * Message listener
+     *  消息监听器
      */
     private MessageListener messageListener;
 
     /**
      * Offset Storage
+     * 消息消费进度存储器
      */
     private OffsetStore offsetStore;
 
     /**
      * Minimum consumer thread number
+     * 消费者最小线程数
      */
     private int consumeThreadMin = 20;
 
     /**
      * Max consumer thread number
+     * 消费者最大线程数，因为消费者线程池使用无界队列，所以此参数不生效
      */
     private int consumeThreadMax = 20;
 
@@ -170,6 +190,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
 
     /**
      * Concurrently max span offset.it has no effect on sequential consumption
+     * 并发消息消费时处理队列最大跨度，默认2000，表示如果消息处理队列中偏移量最大的消息与偏移量最小的消息的跨度超过2000，则延迟50ms后再拉取消息
      */
     private int consumeConcurrentlyMaxSpan = 2000;
 
@@ -177,6 +198,8 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * Flow control threshold on queue level, each message queue will cache at most 1000 messages by default,
      * Consider the {@code pullBatchSize}, the instantaneous value may exceed the limit
      */
+    // 默认1000，表示每1000次流控后打印流控日志
+    // 每个消息队列级别
     private int pullThresholdForQueue = 1000;
 
     /**
@@ -212,16 +235,20 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
 
     /**
      * Message pull Interval
+     *  推模式下 拉取 任务的间隔时间，默认一次拉取任务完成后继续拉取
      */
     private long pullInterval = 0;
 
     /**
      * Batch consumption size
+     * 消息并发消费时一次消费消息的条数，通俗点说，就是每次传入
+     * MessageListener#consumeMessage中的消息条数 ？？
      */
     private int consumeMessageBatchMaxSize = 1;
 
     /**
      * Batch pull size
+     * // 每次批量拉取消息的条数，默认32条
      */
     private int pullBatchSize = 32;
 
@@ -251,6 +278,8 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
 
     /**
      * Maximum amount of time in minutes a message may block the consuming thread.
+     * 消息消费超时时间，默认为15，单位为分钟
+     * 即阻塞消费线程的最大时间（分钟）？
      */
     private long consumeTimeout = 15;
 
@@ -268,8 +297,8 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
 
     /**
      * Constructor specifying consumer group.
-     *
-     * @param consumerGroup Consumer group.
+     *  推模式消费者实例化，默认消息队列分配算法是 AllocateMessageQueueAveragely（平均分配）
+     * @param consumerGroup Consumer group. 消费者所属消费者组
      */
     public DefaultMQPushConsumer(final String consumerGroup) {
         this(null, consumerGroup, null, new AllocateMessageQueueAveragely());
@@ -320,11 +349,11 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
 
     /**
      * Constructor specifying namespace, consumer group, RPC hook and message queue allocating algorithm.
-     *
+     *  推模式消费者实例化
      * @param namespace Namespace for this MQ Producer instance.
-     * @param consumerGroup Consume queue.
+     * @param consumerGroup Consume queue. 消费者所属消费者组
      * @param rpcHook RPC hook to execute before each remoting command.
-     * @param allocateMessageQueueStrategy Message queue allocating algorithm.
+     * @param allocateMessageQueueStrategy Message queue allocating algorithm. 消息队列分配算法
      */
     public DefaultMQPushConsumer(final String namespace, final String consumerGroup, RPCHook rpcHook,
         AllocateMessageQueueStrategy allocateMessageQueueStrategy) {
@@ -684,7 +713,7 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
 
     /**
      * This method gets internal infrastructure readily to serve. Instances must call this method after configuration.
-     *
+     * 启动运行 推模式消费者实例
      * @throws MQClientException if there is any client error.
      */
     @Override
