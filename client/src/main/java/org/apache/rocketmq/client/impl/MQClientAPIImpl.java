@@ -164,7 +164,7 @@ import org.apache.rocketmq.remoting.protocol.LanguageCode;
 import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 import org.apache.rocketmq.remoting.protocol.RemotingSerializable;
 
-// MQClientAPI 通过RemotingClient实例🤔Broker发起请求
+// MQClientAPI 通过RemotingClient实例向Broker发起RPC请求
 public class MQClientAPIImpl {
 
     private final static InternalLogger log = ClientLogger.getLog();
@@ -712,20 +712,22 @@ public class MQClientAPIImpl {
         throw new MQBrokerException(response.getCode(), response.getRemark());
     }
 
+    // 拉取消息
     public PullResult pullMessage(
-        final String addr,
-        final PullMessageRequestHeader requestHeader,
-        final long timeoutMillis,
-        final CommunicationMode communicationMode,
-        final PullCallback pullCallback
+        final String addr, // brokerAddr
+        final PullMessageRequestHeader requestHeader, //
+        final long timeoutMillis, // 消息拉取超时时间
+        final CommunicationMode communicationMode,  // 消息拉取模式，默认为异步拉取。
+        final PullCallback pullCallback  // 拉取成功后回调对象函数
     ) throws RemotingException, MQBrokerException, InterruptedException {
+        // 构造RPC远程请求命令
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.PULL_MESSAGE, requestHeader);
 
         switch (communicationMode) {
             case ONEWAY:
                 assert false;
                 return null;
-            case ASYNC:
+            case ASYNC: // 默认异步拉取
                 this.pullMessageAsync(addr, request, timeoutMillis, pullCallback);
                 return null;
             case SYNC:
@@ -738,22 +740,28 @@ public class MQClientAPIImpl {
         return null;
     }
 
+    // 异步拉取消息
     private void pullMessageAsync(
-        final String addr,
-        final RemotingCommand request,
-        final long timeoutMillis,
-        final PullCallback pullCallback
+        final String addr, // brokerAddr
+        final RemotingCommand request, // RPC远程请求命令对象
+        final long timeoutMillis, // 消息拉取超时时间
+        final PullCallback pullCallback  // 拉取成功后回调对象函数
     ) throws RemotingException, InterruptedException {
+
         this.remotingClient.invokeAsync(addr, request, timeoutMillis, new InvokeCallback() {
+            // 回调函数
             @Override
             public void operationComplete(ResponseFuture responseFuture) {
                 RemotingCommand response = responseFuture.getResponseCommand();
                 if (response != null) {
                     try {
+                        // 处理pull消息请求的响应
                         PullResult pullResult = MQClientAPIImpl.this.processPullResponse(response);
                         assert pullResult != null;
+                        // 成功则回调onSuccess函数
                         pullCallback.onSuccess(pullResult);
                     } catch (Exception e) {
+                        // 发生异常 回调onException
                         pullCallback.onException(e);
                     }
                 } else {
@@ -780,6 +788,7 @@ public class MQClientAPIImpl {
         return this.processPullResponse(response);
     }
 
+    // 处理pull消息请求的响应
     private PullResult processPullResponse(
         final RemotingCommand response) throws MQBrokerException, RemotingCommandException {
         PullStatus pullStatus = PullStatus.NO_NEW_MSG;
@@ -801,6 +810,7 @@ public class MQClientAPIImpl {
                 throw new MQBrokerException(response.getCode(), response.getRemark());
         }
 
+        // 拉取消息响应头
         PullMessageResponseHeader responseHeader =
             (PullMessageResponseHeader) response.decodeCommandCustomHeader(PullMessageResponseHeader.class);
 

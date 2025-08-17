@@ -25,7 +25,7 @@ public class PullRequest {
     private String consumerGroup;
     // 从哪个消息队列中拉取消息
     private MessageQueue messageQueue;
-    // ？？ 消息处理队列，从Broker中拉取到的消息会先存入ProccessQueue，然后再提交到消费者消费线程池进行消费 ？？ todo
+    // ？？ 消息处理队列，从Broker中拉取到的消息会先存入ProcessQueue，然后再提交到消费者消费线程池进行消费 ？？ todo
     private ProcessQueue processQueue;
     // 待拉取的MessageQueue偏移量
     private long nextOffset;

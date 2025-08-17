@@ -100,7 +100,6 @@ public class MQClientInstance {
     private final ConcurrentMap<String/* group */, MQConsumerInner> consumerTable = new ConcurrentHashMap<String, MQConsumerInner>();
     private final ConcurrentMap<String/* group */, MQAdminExtInner> adminExtTable = new ConcurrentHashMap<String, MQAdminExtInner>();
     private final NettyClientConfig nettyClientConfig;
-    //
     private final MQClientAPIImpl mQClientAPIImpl;
     private final MQAdminImpl mQAdminImpl;
 
@@ -110,6 +109,7 @@ public class MQClientInstance {
     private final Lock lockHeartbeat = new ReentrantLock();
 
     // 客户端缓存的主从broker表
+    // 相同名称的Broker构成主从结构，其BrokerId会不一样
     private final ConcurrentMap<String/* Broker Name */, HashMap<Long/* brokerId */, String/* address */>> brokerAddrTable =
         new ConcurrentHashMap<String, HashMap<Long, String>>();
     private final ConcurrentMap<String/* Broker Name */, HashMap<String/* address */, Integer>> brokerVersionTable =
@@ -1083,6 +1083,8 @@ public class MQClientInstance {
         return null;
     }
 
+    // 根据brokerName、BrokerId中获取Broker地址
+    // 在每次拉取消息后，会给出一个建议，下次是从主节点还是从节点拉取
     public FindBrokerResult findBrokerAddressInSubscribe(
         final String brokerName,
         final long brokerId,
@@ -1095,6 +1097,8 @@ public class MQClientInstance {
         HashMap<Long/* brokerId */, String/* address */> map = this.brokerAddrTable.get(brokerName);
         if (map != null && !map.isEmpty()) {
             brokerAddr = map.get(brokerId);
+            // 主节点brokerId都是0？？ todo，
+            // 不是0则为从节点？
             slave = brokerId != MixAll.MASTER_ID;
             found = brokerAddr != null;
 

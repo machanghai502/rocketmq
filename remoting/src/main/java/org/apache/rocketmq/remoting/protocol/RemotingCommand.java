@@ -32,6 +32,7 @@ import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 
 // 网络请求命令
+// 代表请求和响应
 public class RemotingCommand {
     public static final String SERIALIZE_TYPE_PROPERTY = "rocketmq.serialize.type";
     public static final String SERIALIZE_TYPE_ENV = "ROCKETMQ_SERIALIZE_TYPE";
@@ -72,6 +73,7 @@ public class RemotingCommand {
 
     // 请求命令编码，请求命令类型
     // 比如，RequestCode.SEND_MESSAGE
+    // 响应code？
     private int code;
     private LanguageCode language = LanguageCode.JAVA;
     // 版本号
